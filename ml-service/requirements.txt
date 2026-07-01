@@ -1,0 +1,12 @@
+# Core service
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+python-multipart==0.0.20
+numpy==2.2.1
+
+# --- Wire these in when moving from stubs to real models ---
+# torch                 # V-JEPA 2 inference
+# opencv-python         # frame extraction from clips
+# mediapipe             # pose estimation (or use tensorflow + MoveNet)
+# scipy                 # DTW alignment of user vs reference form

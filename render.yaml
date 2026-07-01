@@ -1,0 +1,19 @@
+# Render Blueprint — deploys the FastAPI backend (ml-service).
+# Render → New + → "Blueprint" → connect this repo; it reads this file.
+services:
+  - type: web
+    name: tennis-ml
+    runtime: python
+    plan: free
+    rootDir: ml-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      # Set this to your Vercel frontend URL after the frontend is deployed
+      # (e.g. https://topspin.vercel.app). Controls CORS. Left unset here so
+      # you fill it in the dashboard once you know the URL.
+      - key: TENNIS_ALLOWED_ORIGINS
+        sync: false

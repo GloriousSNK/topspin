@@ -1,0 +1,24 @@
+# Python
+ml-service/.venv/
+__pycache__/
+*.pyc
+ml-service/storage/*
+!ml-service/storage/.gitkeep
+
+# Node / Next
+web/node_modules/
+web/.next/
+web/out/
+web/.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# Env / secrets
+.env
+.env.*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
