@@ -39,19 +39,14 @@ export default function Insights() {
 
       {loading && !stats && !err && (
         <div className="card" style={{ marginBottom: 18 }}>
-          <strong style={{ color: "var(--court)" }}>● Waking up the analytics service…</strong>{" "}
-          <span style={{ color: "var(--ink-soft)" }}>
-            A free-tier backend can take ~30s to spin up after being idle. Hang tight.
-          </span>
+          <strong style={{ color: "var(--court)" }}>● Loading…</strong>
         </div>
       )}
 
       {err && !stats && (
         <div className="card" style={{ borderColor: "var(--danger)", marginBottom: 18 }}>
           <strong style={{ color: "var(--danger)" }}>Can&apos;t reach the analytics service.</strong>{" "}
-          <span style={{ color: "var(--ink-soft)" }}>
-            It may still be waking up (free tier) — it&apos;ll refresh automatically. Endpoint: {api.base}
-          </span>
+          <span style={{ color: "var(--ink-soft)" }}>It&apos;ll refresh automatically.</span>
         </div>
       )}
 
