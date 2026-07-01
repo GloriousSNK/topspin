@@ -5,6 +5,10 @@ pydantic==2.10.4
 python-multipart==0.0.20
 numpy==2.2.1
 
+# Persistent analytics store in production (used only when DATABASE_URL is set;
+# local dev falls back to SQLite and doesn't need this at runtime).
+psycopg[binary]~=3.2
+
 # --- Wire these in when moving from stubs to real models ---
 # torch                 # V-JEPA 2 inference
 # opencv-python         # frame extraction from clips

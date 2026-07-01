@@ -35,7 +35,22 @@ git push -u origin main
      `https://tennis-ml.onrender.com`)
 4. **Deploy**. You'll get a URL like `https://topspin.vercel.app`. Copy it.
 
-## 4. Connect them (CORS)
+## 4. Persistent analytics (so Insights don't reset)  ← required for Insights
+Render's free backend has an **ephemeral disk and sleeps when idle**, so the
+local SQLite analytics file gets wiped on every restart (counts fall back to 0).
+Point it at a free, always-persistent Postgres instead:
+
+1. Create a free database at <https://neon.tech> (sign in with GitHub → it makes
+   a Postgres project instantly).
+2. Copy its **Pooled** connection string (looks like
+   `postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require`).
+3. In Render → `tennis-ml` → **Environment** → add
+   `DATABASE_URL` = that connection string. Save.
+
+The backend auto-detects `DATABASE_URL` and uses Postgres (persistent); with it
+unset it uses local SQLite. No code change needed. Counts now survive restarts.
+
+## 5. Connect them (CORS)
 1. Back in Render → `tennis-ml` → **Environment** → set
    `TENNIS_ALLOWED_ORIGINS` = your Vercel URL (e.g.
    `https://topspin.vercel.app`). Save — the backend redeploys.

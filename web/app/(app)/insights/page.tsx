@@ -7,20 +7,26 @@ import type { TrafficStats } from "@/lib/types";
 export default function Insights() {
   const [stats, setStats] = useState<TrafficStats | null>(null);
   const [err, setErr] = useState<string | null>(null);
-
-  async function load() {
-    try {
-      setErr(null);
-      setStats(await api.stats());
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed to load stats");
-    }
-  }
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let alive = true;
+    async function load() {
+      try {
+        const s = await api.stats();
+        if (!alive) return;
+        setStats(s);      // keep last good data on a later blip; only replace on success
+        setErr(null);
+      } catch (e) {
+        if (!alive) return;
+        setErr(e instanceof Error ? e.message : "Failed to load stats");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
     load();
     const id = setInterval(load, 15000); // refresh while you watch
-    return () => clearInterval(id);
+    return () => { alive = false; clearInterval(id); };
   }, []);
 
   const maxDaily = stats ? Math.max(1, ...stats.daily.map((d) => d.views)) : 1;
@@ -33,10 +39,27 @@ export default function Insights() {
         machine. Updates live as people move through the site.
       </p>
 
-      {err && (
+      {loading && !stats && !err && (
+        <div className="card" style={{ marginBottom: 18 }}>
+          <strong style={{ color: "var(--court)" }}>● Waking up the analytics service…</strong>{" "}
+          <span style={{ color: "var(--ink-soft)" }}>
+            A free-tier backend can take ~30s to spin up after being idle. Hang tight.
+          </span>
+        </div>
+      )}
+
+      {err && !stats && (
         <div className="card" style={{ borderColor: "var(--danger)", marginBottom: 18 }}>
           <strong style={{ color: "var(--danger)" }}>Can&apos;t reach the analytics service.</strong>{" "}
-          <span style={{ color: "var(--ink-soft)" }}>Make sure it&apos;s running at {api.base}.</span>
+          <span style={{ color: "var(--ink-soft)" }}>
+            It may still be waking up (free tier) — it&apos;ll refresh automatically. Endpoint: {api.base}
+          </span>
+        </div>
+      )}
+
+      {err && stats && (
+        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12 }}>
+          ⟳ Showing last known data — reconnecting…
         </div>
       )}
 
