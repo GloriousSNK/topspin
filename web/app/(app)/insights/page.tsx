@@ -78,26 +78,6 @@ export default function Insights() {
             <Metric value={stats.active_today} label="Visitors · last 24h" />
           </div>
 
-          <div className="card">
-            <div className="card-title">Recent activity</div>
-            {stats.recent.length === 0 && <Empty />}
-            <table className="data">
-              <tbody>
-                {stats.recent.map((r, i) => (
-                  <tr key={i}>
-                    <td>
-                      {r.kind === "help" ? (
-                        <span className="pill accent">AI analysis</span>
-                      ) : (
-                        <span className="mono" style={{ fontWeight: 600 }}>{r.path}</span>
-                      )}
-                    </td>
-                    <td style={{ color: "var(--ink-soft)", textAlign: "right" }}>{timeAgo(r.ts)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </>
       )}
     </div>
@@ -115,14 +95,3 @@ function Metric({ value, label, accent }: { value: number | string; label: strin
   );
 }
 
-function Empty() {
-  return <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>No data yet — browse a few pages and it&apos;ll show up here.</p>;
-}
-
-function timeAgo(ts: number): string {
-  const s = Math.max(0, Date.now() / 1000 - ts);
-  if (s < 60) return `${Math.floor(s)}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-}

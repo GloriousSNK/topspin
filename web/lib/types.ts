@@ -135,6 +135,5 @@ export interface TrafficStats {
   unique_visitors: number;
   views_today: number;
   active_today: number;
-  recent: { kind: string; path: string; ts: number }[];
   generated_at: number;
 }

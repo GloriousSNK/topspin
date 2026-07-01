@@ -206,8 +206,6 @@ def stats() -> dict:
         )
         active_today = cur.fetchone()[0]
 
-        cur.execute("SELECT kind, path, ts FROM events ORDER BY id DESC LIMIT 15")
-        recent = [{"kind": row[0], "path": row[1], "ts": row[2]} for row in cur.fetchall()]
     finally:
         conn.close()
 
@@ -217,6 +215,5 @@ def stats() -> dict:
         "unique_visitors": int(unique),
         "views_today": int(today),
         "active_today": int(active_today),
-        "recent": recent,
         "generated_at": now,
     }
