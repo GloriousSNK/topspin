@@ -26,6 +26,7 @@ export default function Footer() {
             <Link href="/learn">The physics, explained</Link>
             <Link href="/#how">How it works</Link>
             <Link href="/about">About</Link>
+            <Link href="/privacy">Privacy</Link>
           </div>
           <div className="footer-col">
             <h5>Project</h5>

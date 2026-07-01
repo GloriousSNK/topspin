@@ -130,12 +130,11 @@ export interface CatalogueDrill {
 }
 
 export interface TrafficStats {
+  people_helped: number;
   total_views: number;
   unique_visitors: number;
   views_today: number;
   active_today: number;
-  per_page: { path: string; views: number }[];
-  daily: { date: string; views: number }[];
-  recent: { path: string; ts: number }[];
+  recent: { kind: string; path: string; ts: number }[];
   generated_at: number;
 }

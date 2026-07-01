@@ -11,6 +11,7 @@ from ..config import STORAGE_DIR, MAX_UPLOAD_MB, MAX_STORED_CLIPS
 from ..schemas import AnalyzeRequest
 from ..core import jepa, pose_analysis
 from ..ratelimit import RateLimiter, rate_limit
+from .. import analytics
 
 router = APIRouter(prefix="/analyze", tags=["analysis"])
 
@@ -104,6 +105,9 @@ async def upload_clip(
     if first or size == 0:
         dest.unlink(missing_ok=True)
         raise HTTPException(400, "Empty file.")
+
+    # Count this as one "person helped" (a clip submitted for AI analysis).
+    analytics.record_help(session=clip_id)
 
     return {
         "clip_id": clip_id,

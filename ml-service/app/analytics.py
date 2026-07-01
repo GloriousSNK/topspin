@@ -66,6 +66,7 @@ def _ensure_schema() -> None:
                     """CREATE TABLE IF NOT EXISTS events (
                         id       BIGSERIAL PRIMARY KEY,
                         ts       DOUBLE PRECISION NOT NULL,
+                        kind     TEXT NOT NULL DEFAULT 'view',
                         path     TEXT NOT NULL,
                         session  TEXT NOT NULL,
                         referrer TEXT
@@ -77,6 +78,7 @@ def _ensure_schema() -> None:
                     """CREATE TABLE IF NOT EXISTS events (
                         id       INTEGER PRIMARY KEY AUTOINCREMENT,
                         ts       REAL NOT NULL,
+                        kind     TEXT NOT NULL DEFAULT 'view',
                         path     TEXT NOT NULL,
                         session  TEXT NOT NULL,
                         referrer TEXT
@@ -86,6 +88,22 @@ def _ensure_schema() -> None:
             conn.commit()
         finally:
             conn.close()
+
+        # Migrate any pre-existing table that lacks the `kind` column.
+        try:
+            mconn = _raw_conn()
+            mcur = mconn.cursor()
+            if _USE_PG:
+                mcur.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'view'")
+            else:
+                cols = [r[1] for r in mcur.execute("PRAGMA table_info(events)").fetchall()]
+                if "kind" not in cols:
+                    mcur.execute("ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'view'")
+            mconn.commit()
+            mconn.close()
+        except Exception:
+            pass
+
         _initialised = True
 
 
@@ -125,19 +143,20 @@ def _ref_origin(url: str | None) -> str:
     return ""
 
 
-def record(path: str, session: str, referrer: str | None) -> None:
-    """Insert one pageview. Inputs are sanitised and length-capped."""
+def record(path: str, session: str, referrer: str | None, kind: str = "view") -> None:
+    """Insert one event. `kind` is 'view' (a pageview) or 'help' (an AI analysis)."""
     p = _clean_path(path)
     s = _clip(session, MAX_SESSION, "anon")
     r = _ref_origin(referrer)
+    k = "help" if kind == "help" else "view"
     with _write_lock:
         conn = _conn()
         try:
             cur = conn.cursor()
             cur.execute(
-                f"INSERT INTO events (ts, path, session, referrer) "
-                f"VALUES ({_PH}, {_PH}, {_PH}, {_PH})",
-                (time.time(), p, s, r),
+                f"INSERT INTO events (ts, kind, path, session, referrer) "
+                f"VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH})",
+                (time.time(), k, p, s, r),
             )
             # Prune occasionally — the COUNT(*) scan is O(n); don't run it every write.
             if random.random() < 0.02:
@@ -154,51 +173,50 @@ def record(path: str, session: str, referrer: str | None) -> None:
             conn.close()
 
 
+def record_help(session: str | None = None) -> None:
+    """Log one AI analysis ('a person helped'). Never raises to its caller."""
+    try:
+        record("/analyze", session or "anon", None, kind="help")
+    except Exception:
+        pass
+
+
 def stats() -> dict:
-    """Return aggregate traffic stats — no per-user data leaves this function."""
+    """Return aggregate stats — no per-user data leaves this function."""
     now = time.time()
     conn = _conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM events")
+        # 'help' events = AI analyses run = people helped.
+        cur.execute(f"SELECT COUNT(*) FROM events WHERE kind = {_PH}", ("help",))
+        people_helped = cur.fetchone()[0]
+        # 'view' events = pageviews / visitors.
+        cur.execute(f"SELECT COUNT(*) FROM events WHERE kind = {_PH}", ("view",))
         total = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(DISTINCT session) FROM events")
+        cur.execute(f"SELECT COUNT(DISTINCT session) FROM events WHERE kind = {_PH}", ("view",))
         unique = cur.fetchone()[0]
-        cur.execute(f"SELECT COUNT(*) FROM events WHERE ts >= {_PH}", (now - DAY,))
+        cur.execute(
+            f"SELECT COUNT(*) FROM events WHERE kind = {_PH} AND ts >= {_PH}",
+            ("view", now - DAY),
+        )
         today = cur.fetchone()[0]
-        cur.execute(f"SELECT COUNT(DISTINCT session) FROM events WHERE ts >= {_PH}", (now - DAY,))
+        cur.execute(
+            f"SELECT COUNT(DISTINCT session) FROM events WHERE kind = {_PH} AND ts >= {_PH}",
+            ("view", now - DAY),
+        )
         active_today = cur.fetchone()[0]
 
-        cur.execute(
-            "SELECT path, COUNT(*) AS v FROM events GROUP BY path ORDER BY v DESC LIMIT 12"
-        )
-        per_page = [{"path": row[0], "views": row[1]} for row in cur.fetchall()]
-
-        # Last 7 days, bucketed by local day (done in Python — backend-agnostic).
-        cur.execute(f"SELECT ts FROM events WHERE ts >= {_PH}", (now - 7 * DAY,))
-        rows = cur.fetchall()
-        buckets: dict[str, int] = {}
-        for i in range(7):
-            day = time.strftime("%Y-%m-%d", time.localtime(now - (6 - i) * DAY))
-            buckets[day] = 0
-        for (ts,) in rows:
-            day = time.strftime("%Y-%m-%d", time.localtime(ts))
-            if day in buckets:
-                buckets[day] += 1
-        daily = [{"date": d, "views": v} for d, v in buckets.items()]
-
-        cur.execute("SELECT path, ts FROM events ORDER BY id DESC LIMIT 15")
-        recent = [{"path": row[0], "ts": row[1]} for row in cur.fetchall()]
+        cur.execute("SELECT kind, path, ts FROM events ORDER BY id DESC LIMIT 15")
+        recent = [{"kind": row[0], "path": row[1], "ts": row[2]} for row in cur.fetchall()]
     finally:
         conn.close()
 
     return {
+        "people_helped": int(people_helped),
         "total_views": int(total),
         "unique_visitors": int(unique),
         "views_today": int(today),
         "active_today": int(active_today),
-        "per_page": per_page,
-        "daily": daily,
         "recent": recent,
         "generated_at": now,
     }
