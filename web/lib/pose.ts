@@ -270,7 +270,7 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
   const band = (v: number, lo: number, hi: number, tol: number) =>
     v >= lo && v <= hi ? 1 : Math.max(0, 1 - (v < lo ? lo - v : v - hi) / tol);
   const on = (cond: boolean, c: Chk) => { if (cond) checks.push(c); };
-  const kind = stroke === "volley" ? "volley" : stroke === "serve" ? "serve" : "ground";
+  const kind = stroke === "volley" ? "volley" : stroke === "serve" ? "serve" : stroke === "slice" ? "slice" : "ground";
 
   if (kind === "volley") {
     on(true, { label: "Compactness", reading: amp.toFixed(1), q: band(amp, 0.2, 2.0, 2.2), ok: "Short and compact.", bad: "Too much swing — punch it, racquet in front.", flaw: { id: "early_contact", label: "Swing too long for a volley", cue: "Punch, don't swing. Keep it short and out front." } });
@@ -282,6 +282,11 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
     on(elbow != null, { label: "Extension", reading: `${Math.round(elbow ?? 0)}°`, q: band(elbow ?? 150, 150, 182, 45), ok: "Fully extended.", bad: "Straighten the arm fully.", flaw: { id: "low_elbow", label: "Arm not extended", cue: "Reach up and straighten the arm at contact." } });
     on(kneeFlex != null, { label: "Leg drive", reading: `${Math.round(Math.max(0, kneeFlex ?? 0))}° flex`, q: band(kneeFlex ?? 25, 15, 75, 22), ok: "Good leg load.", bad: "Load and drive with the legs.", flaw: { id: "narrow_base", label: "Little leg drive", cue: "Bend the knees and drive up into the ball." } });
     on(true, { label: "Motion size", reading: amp.toFixed(1), q: band(amp, 2.0, 12, 3), ok: "Full motion.", bad: "Let the full service motion unfold.", flaw: { id: "late_preparation", label: "Rushed motion", cue: "Take your time through the whole motion." } });
+  } else if (kind === "slice") {
+    on(true, { label: "High to low", reading: rise.toFixed(2), q: band(rise, -3, 0.35, 1.1), ok: "Cutting down through the ball.", bad: "Slice cuts high to low — start above the ball.", flaw: { id: "short_followthrough", label: "Path goes upward", cue: "Start the racquet high and cut down and through for underspin." } });
+    on(true, { label: "Controlled swing", reading: amp.toFixed(1), q: band(amp, 1.4, 6, 2.6), ok: "Compact and controlled.", bad: "Keep the slice compact and controlled.", flaw: { id: "early_contact", label: "Swing too loose", cue: "Keep it compact — guide the racquet, don't swing big." } });
+    on(elbow != null, { label: "Firm arm", reading: `${Math.round(elbow ?? 0)}°`, q: band(elbow ?? 150, 120, 182, 45), ok: "Firm and extended.", bad: "Keep the arm firm and out in front.", flaw: { id: "wrist_instability", label: "Wrist too loose", cue: "Firm the wrist and lead with the edge." } });
+    on(kneeFlex != null, { label: "Stay low", reading: `${Math.round(Math.max(0, kneeFlex ?? 0))}° flex`, q: band(kneeFlex ?? 18, 6, 50, 18), ok: "Bent and balanced.", bad: "Bend the knees and stay down through it.", flaw: { id: "narrow_base", label: "Standing too tall", cue: "Bend the knees and stay low through the slice." } });
   } else {
     on(true, { label: "Swing length", reading: amp.toFixed(1), q: band(amp, 2.2, 10, 3), ok: "Full swing.", bad: "Take a bigger, earlier backswing.", flaw: { id: "late_preparation", label: "Swing too short", cue: "Prepare earlier and take a fuller swing." } });
     on(true, { label: "Follow-through", reading: follow.toFixed(1), q: band(follow, 1.2, 8, 1.6), ok: "Finishes long.", bad: "Carry the finish higher and longer.", flaw: { id: "short_followthrough", label: "Short follow-through", cue: "Finish high, over the shoulder." } });
