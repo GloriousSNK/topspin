@@ -154,10 +154,7 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
   canvas.height = Math.max(2, Math.round((video.videoHeight || 480) * scale));
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
 
-  const detectAt = async (t: number): Promise<Pt[] | null> => {
-    await seek(video, t);
-    await nextPainted(video);
-    if (!video.videoWidth || !video.videoHeight) return null;
+  const detectCanvas = (): Pt[] | null => {
     try {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const lm = landmarker.detect(canvas).landmarks?.[0];
@@ -167,27 +164,63 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
     }
   };
 
-  const N = 26;
-  const collect = async (): Promise<{ t: number; pts: Pt[] }[]> => {
+  type RVFC = HTMLVideoElement & {
+    requestVideoFrameCallback?: (cb: (now: number, meta: { mediaTime: number }) => void) => number;
+  };
+
+  // Primary capture: play the clip and read each painted frame in order. This
+  // is the most reliable way to get real, decoded pixels — no seek guesswork.
+  const playCapture = (): Promise<{ t: number; pts: Pt[] }[] | null> =>
+    new Promise((resolve) => {
+      const v = video as RVFC;
+      if (!v.requestVideoFrameCallback) return resolve(null);
+      const out: { t: number; pts: Pt[] }[] = [];
+      let done = false;
+      const stop = () => { if (done) return; done = true; try { video.pause(); } catch {} resolve(out); };
+      const onFrame = (_now: number, meta: { mediaTime: number }) => {
+        if (done) return;
+        const pts = detectCanvas();
+        if (pts) out.push({ t: meta.mediaTime, pts });
+        if (out.length >= 45 || meta.mediaTime >= 6) return stop();
+        v.requestVideoFrameCallback!(onFrame);
+      };
+      v.requestVideoFrameCallback!(onFrame);
+      video.play().catch(() => stop());
+      video.onended = stop;
+      setTimeout(stop, 9000);
+    });
+
+  // Fallback capture: seek to evenly spaced times.
+  const seekCapture = async (): Promise<{ t: number; pts: Pt[] }[]> => {
     const out: { t: number; pts: Pt[] }[] = [];
+    const N = 26;
     for (let i = 0; i < N; i++) {
       const t = (i / (N - 1)) * duration * 0.98;
-      const pts = await detectAt(t);
+      await seek(video, t);
+      await nextPainted(video);
+      if (!video.videoWidth) continue;
+      const pts = detectCanvas();
       if (pts) out.push({ t, pts });
     }
     return out;
   };
 
-  // Warm up GPU shaders on the first frame (that first detect is often empty).
-  try { await detectAt(0); } catch { /* best effort */ }
+  // Warm up GPU shaders (the first detect is often empty).
+  try { await seek(video, 0); await nextPainted(video); detectCanvas(); } catch { /* best effort */ }
 
-  let frames = await collect();
-  if (frames.length < 8) frames = await collect();
+  let frames = (await playCapture()) ?? [];
+  if (frames.length < 6) {
+    try { video.pause(); } catch {}
+    const seeked = await seekCapture();
+    if (seeked.length > frames.length) frames = seeked;
+  }
   URL.revokeObjectURL(video.src);
 
   if (frames.length < 3) {
     throw new Error("Couldn't find a person in that clip. Make sure your body is visible through the swing.");
   }
+
+  frames = smoothFrames(frames); // steady the keypoints before measuring angles
 
   // Dominant arm = the wrist that travels most.
   const travel = (idx: number) =>
@@ -276,3 +309,18 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
 }
 
 const round2 = (x: number) => Math.round(x * 100) / 100;
+
+// 3-frame moving average of each landmark to damp per-frame jitter, which
+// otherwise throws off the joint angles.
+function smoothFrames(frames: { t: number; pts: Pt[] }[]): { t: number; pts: Pt[] }[] {
+  if (frames.length < 3) return frames;
+  const out = frames.map((f) => ({ t: f.t, pts: f.pts.map((p) => ({ ...p })) }));
+  for (let i = 1; i < frames.length - 1; i++) {
+    for (let k = 0; k < frames[i].pts.length; k++) {
+      const a = frames[i - 1].pts[k], b = frames[i].pts[k], c = frames[i + 1].pts[k];
+      out[i].pts[k].x = (a.x + b.x + c.x) / 3;
+      out[i].pts[k].y = (a.y + b.y + c.y) / 3;
+    }
+  }
+  return out;
+}
