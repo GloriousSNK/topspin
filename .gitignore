@@ -13,9 +13,23 @@ web/.turbo/
 *.tsbuildinfo
 next-env.d.ts
 
-# Env / secrets
+# Env / secrets (matched at any depth)
 .env
-.env.*.local
+.env.*
+*.env
+!*.env.example
+# keys, certs, credentials
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+secrets.json
+secrets.*
+credentials.json
+service-account*.json
+.secrets/
 
 # OS / editor
 .DS_Store
