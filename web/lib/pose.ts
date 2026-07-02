@@ -10,8 +10,9 @@
 import type { PoseLandmarker as PoseLandmarkerT } from "@mediapipe/tasks-vision";
 
 const MP_VERSION = "0.10.14";
+// "full" model: markedly better at actually finding the body than "lite".
 const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
 // BlazePose landmark indices we care about.
 const L = {
@@ -59,7 +60,9 @@ async function getLandmarker(): Promise<PoseLandmarkerT> {
   const make = (delegate: "GPU" | "CPU") =>
     PoseLandmarker.createFromOptions(vision, {
       baseOptions: { modelAssetPath: MODEL_URL, delegate },
-      runningMode: "VIDEO",
+      // IMAGE mode treats each seeked frame independently — far more reliable
+      // than VIDEO mode when we're jumping around the clip.
+      runningMode: "IMAGE",
       numPoses: 1,
       // Low thresholds so partial / dim / off-angle clips still register.
       minPoseDetectionConfidence: 0.2,
@@ -143,33 +146,40 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
   const video = await loadVideo(file);
   const duration = await resolveDuration(video);
 
-  const N = 24;
-  let tsCounter = 0;
+  // Draw each frame onto a canvas and detect on that. Downscale big clips so a
+  // huge frame doesn't slow (or choke) detection.
+  const scale = Math.min(1, 640 / Math.max(video.videoWidth || 640, video.videoHeight || 640));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(2, Math.round((video.videoWidth || 640) * scale));
+  canvas.height = Math.max(2, Math.round((video.videoHeight || 480) * scale));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+
+  const detectAt = async (t: number): Promise<Pt[] | null> => {
+    await seek(video, t);
+    await nextPainted(video);
+    if (!video.videoWidth || !video.videoHeight) return null;
+    try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const lm = landmarker.detect(canvas).landmarks?.[0];
+      return lm && lm.length >= 25 ? (lm as Pt[]) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const N = 26;
   const collect = async (): Promise<{ t: number; pts: Pt[] }[]> => {
     const out: { t: number; pts: Pt[] }[] = [];
     for (let i = 0; i < N; i++) {
       const t = (i / (N - 1)) * duration * 0.98;
-      await seek(video, t);
-      await nextPainted(video);
-      if (!video.videoWidth || !video.videoHeight) continue;
-      try {
-        tsCounter += 40;
-        const lm = landmarker.detectForVideo(video, tsCounter).landmarks?.[0];
-        if (lm && lm.length >= 25) out.push({ t, pts: lm as Pt[] });
-      } catch {
-        /* skip this frame */
-      }
+      const pts = await detectAt(t);
+      if (pts) out.push({ t, pts });
     }
     return out;
   };
 
-  // The very first detections after load often miss, so warm up, then allow a
-  // second full pass. This is why a retry "worked" before — now it's automatic.
-  try {
-    await seek(video, 0);
-    await nextPainted(video);
-    landmarker.detectForVideo(video, (tsCounter += 40));
-  } catch { /* warmup best-effort */ }
+  // Warm up GPU shaders on the first frame (that first detect is often empty).
+  try { await detectAt(0); } catch { /* best effort */ }
 
   let frames = await collect();
   if (frames.length < 8) frames = await collect();
