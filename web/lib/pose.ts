@@ -45,6 +45,7 @@ export interface PoseAnalysis {
   flaws: StrokeFlaw[];
   skeleton: Record<string, [number, number]>;
   framesAnalyzed: number;
+  seconds: number;
 }
 
 type Pt = { x: number; y: number; z: number; visibility?: number };
@@ -214,6 +215,7 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
     flaws: flaws.sort((a, b) => b.severity - a.severity).map((f) => ({ ...f, severity: round2(f.severity) })),
     skeleton,
     framesAnalyzed: frames.length,
+    seconds: Math.round(duration),
   };
 }
 

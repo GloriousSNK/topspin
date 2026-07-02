@@ -130,26 +130,12 @@ export interface CatalogueDrill {
 }
 
 export interface TrafficStats {
-  // traffic
-  unique_visitors: number;
-  returning_visitors: number;
-  active_today: number;
-  active_7d: number;
-  active_30d: number;
-  total_views: number;
-  views_today: number;
-  total_events: number;
-  // product usage
-  people_helped: number;
-  analyses_run: number;
-  simulations_run: number;
-  workouts_built: number;
-  // real computational work
-  landing_points_simulated: number;
-  physics_steps: number;
-  trajectory_points: number;
-  frames_analysed: number;
-  keypoints_tracked: number;
-  drills_prescribed: number;
+  videos_analyzed: number;
+  practice_sessions: number;
+  simulations: number;
+  frames_processed: number;
+  footage_seconds: number;
+  athletes_served: number;
+  orgs_reached: number;
   generated_at: number;
 }

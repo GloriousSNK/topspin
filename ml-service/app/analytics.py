@@ -192,72 +192,37 @@ def record_action(kind: str, n: int = 1, session: str | None = None) -> None:
         pass
 
 
-# Fixed, real per-unit costs of the work each action performs (see routers).
-RK4_STEPS_PER_SHOT = 450      # ~1.8s flight at dt=4ms
-TRAJ_POINTS_PER_SIM = 120     # downsampled path returned to the browser
-KEYPOINTS_PER_FRAME = 33      # BlazePose landmarks per analysed frame
+FRAMES_PER_VIDEO = 24         # frames sampled per clip (see web/lib/pose.ts)
 
 
 def stats() -> dict:
-    """Aggregate stats: real traffic counts plus real computational totals."""
+    """Aggregate, honest counts summed from the event log."""
     now = time.time()
-    t1, t7, t30 = now - DAY, now - 7 * DAY, now - 30 * DAY
     conn = _conn()
     try:
         cur = conn.cursor()
         cur.execute(
-            f"""SELECT
-                SUM(CASE WHEN kind = 'view' THEN 1 ELSE 0 END),
-                COUNT(DISTINCT CASE WHEN kind = 'view' THEN session END),
-                SUM(CASE WHEN kind = 'view' AND ts >= {_PH} THEN 1 ELSE 0 END),
-                COUNT(DISTINCT CASE WHEN kind = 'view' AND ts >= {_PH} THEN session END),
-                COUNT(DISTINCT CASE WHEN kind = 'view' AND ts >= {_PH} THEN session END),
-                COUNT(DISTINCT CASE WHEN kind = 'view' AND ts >= {_PH} THEN session END),
+            """SELECT
                 SUM(CASE WHEN kind = 'help' THEN 1 ELSE 0 END),
-                SUM(CASE WHEN kind = 'sim' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN kind = 'workout' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN kind = 'sim' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN kind = 'help' THEN n ELSE 0 END),
-                SUM(CASE WHEN kind = 'sim' THEN n ELSE 0 END),
-                SUM(CASE WHEN kind = 'workout' THEN n ELSE 0 END),
-                COUNT(*)
-            FROM events""",
-            (t1, t1, t7, t30),
+                COUNT(DISTINCT session),
+                COUNT(DISTINCT CASE WHEN referrer <> '' THEN referrer END)
+            FROM events"""
         )
-        r = [int(x or 0) for x in (cur.fetchone() or [0] * 13)]
-
-        # Returning visitors: sessions whose views span more than a day.
-        cur.execute(
-            "SELECT COUNT(*) FROM (SELECT session FROM events WHERE kind = 'view' "
-            "GROUP BY session HAVING MAX(ts) - MIN(ts) > 86400) t"
-        )
-        returning = int((cur.fetchone() or [0])[0] or 0)
+        r = [int(x or 0) for x in (cur.fetchone() or [0] * 6)]
     finally:
         conn.close()
 
-    (views, visitors, views_24h, active_24h, active_7d, active_30d,
-     analyses, sims, workouts, pose_frames, landing_pts, drills, total_events) = r
-
+    videos, sessions, sims, footage_seconds, athletes, orgs = r
     return {
-        # traffic
-        "unique_visitors": visitors,
-        "returning_visitors": returning,
-        "active_today": active_24h,
-        "active_7d": active_7d,
-        "active_30d": active_30d,
-        "total_views": views,
-        "views_today": views_24h,
-        "total_events": total_events,
-        # product usage
-        "people_helped": analyses + sims + workouts,
-        "analyses_run": analyses,
-        "simulations_run": sims,
-        "workouts_built": workouts,
-        # real computational work performed
-        "landing_points_simulated": landing_pts,
-        "physics_steps": landing_pts * RK4_STEPS_PER_SHOT,
-        "trajectory_points": sims * TRAJ_POINTS_PER_SIM,
-        "frames_analysed": pose_frames,
-        "keypoints_tracked": pose_frames * KEYPOINTS_PER_FRAME,
-        "drills_prescribed": drills,
+        "videos_analyzed": videos,
+        "practice_sessions": sessions,
+        "simulations": sims,
+        "frames_processed": videos * FRAMES_PER_VIDEO,
+        "footage_seconds": footage_seconds,
+        "athletes_served": athletes,
+        "orgs_reached": orgs,
         "generated_at": now,
     }

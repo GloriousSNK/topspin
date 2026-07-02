@@ -58,25 +58,26 @@ export default function Insights() {
 
       {stats && (
         <>
-          {/* headline: analyses + workouts + simulations combined */}
-          <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 44 }}>🎾</span>
-            <div className="stat">
-              <span className="stat-value" style={{ fontSize: 44, color: "var(--court)" }}>{fmt(stats.people_helped)}</span>
-              <span className="stat-label">AI analyses, workouts &amp; simulations run</span>
-            </div>
-          </div>
-
           <div className="grid grid-4">
-            <Metric value={stats.total_views} label="Total page views" />
-            <Metric value={stats.physics_steps} label="RK4 physics steps" accent />
-            <Metric value={stats.trajectory_points} label="Trajectory points plotted" />
-            <Metric value={stats.keypoints_tracked} label="Body keypoints tracked" />
+            <Metric value={stats.videos_analyzed} label="Videos analyzed" accent />
+            <Metric value={stats.practice_sessions} label="Practice sessions completed" />
+            <Metric value={stats.simulations} label="Simulations generated" />
+            <Metric value={stats.frames_processed} label="Frames processed" />
+            <Metric value={footage(stats.footage_seconds)} label="Footage analyzed" />
+            <Metric value={stats.athletes_served} label="Athletes served" accent />
+            <Metric value={stats.orgs_reached} label="Schools, clubs & teams reached" />
           </div>
         </>
       )}
     </div>
   );
+}
+
+function footage(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.round(sec / 60);
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
 function Metric({ value, label, accent }: { value: number | string; label: string; accent?: boolean }) {
