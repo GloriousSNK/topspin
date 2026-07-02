@@ -67,9 +67,8 @@ export default function Insights() {
             </div>
           </div>
 
-          <div className="grid grid-3" style={{ marginBottom: 18 }}>
+          <div className="grid grid-2" style={{ marginBottom: 18 }}>
             <Metric value={stats.unique_visitors} label="Lifetime visitors" />
-            <Metric value={stats.total_views} label="Total page views" />
             <Metric value={stats.active_today} label="Visitors · last 24h" />
           </div>
 
