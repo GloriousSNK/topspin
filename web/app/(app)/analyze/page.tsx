@@ -130,14 +130,12 @@ export default function Analyze() {
               <div className="card-title">Your contact position</div>
               <Skeleton skeleton={result.skeleton} />
               <table className="data" style={{ marginTop: 14 }}>
-                <thead><tr><th>Joint</th><th>You</th><th>Target</th><th>Δ</th><th></th></tr></thead>
+                <thead><tr><th>Check</th><th>Reading</th><th></th></tr></thead>
                 <tbody>
                   {result.jointFeedback.map((j) => (
                     <tr key={j.joint}>
-                      <td style={{ textTransform: "capitalize" }}>{j.joint}</td>
-                      <td className="mono">{j.userAngle}°</td>
-                      <td className="mono" style={{ color: "var(--muted)" }}>{j.idealAngle}°</td>
-                      <td className="mono">{j.deviation > 0 ? "+" : ""}{j.deviation}°</td>
+                      <td>{j.joint}</td>
+                      <td className="mono">{j.reading}</td>
                       <td>
                         <span className={`pill ${j.status === "good" ? "good" : j.status === "minor" ? "warn" : "off"}`}>
                           {j.status}

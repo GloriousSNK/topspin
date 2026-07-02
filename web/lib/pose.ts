@@ -26,9 +26,7 @@ const L = {
 
 export interface JointFeedback {
   joint: string;
-  userAngle: number;
-  idealAngle: number;
-  deviation: number;
+  reading: string;
   status: "good" | "minor" | "off";
   note: string;
 }
@@ -121,11 +119,18 @@ async function resolveDuration(v: HTMLVideoElement): Promise<number> {
   return Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 3;
 }
 
-const REFERENCE: Record<string, number> = {
-  elbow: 158,   // dominant arm, fairly extended at contact
-  knee: 150,    // loaded legs, some bend
-  trunk: 165,   // upright-ish, not leaning back
-};
+// Wait until the just-seeked frame is actually painted, so detection sees pixels.
+function nextPainted(v: HTMLVideoElement): Promise<void> {
+  return new Promise((resolve) => {
+    const anyV = v as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number };
+    if (anyV.requestVideoFrameCallback) {
+      anyV.requestVideoFrameCallback(() => resolve());
+      setTimeout(resolve, 300);
+    } else {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }
+  });
+}
 
 export async function analyzeStroke(file: File, stroke: string): Promise<PoseAnalysis> {
   let landmarker: PoseLandmarkerT;
@@ -139,93 +144,103 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
   const duration = await resolveDuration(video);
 
   const N = 24;
-  const frames: { t: number; pts: Pt[] }[] = [];
   let tsCounter = 0;
-  try {
+  const collect = async (): Promise<{ t: number; pts: Pt[] }[]> => {
+    const out: { t: number; pts: Pt[] }[] = [];
     for (let i = 0; i < N; i++) {
       const t = (i / (N - 1)) * duration * 0.98;
       await seek(video, t);
-      if (!video.videoWidth || !video.videoHeight) continue; // frame not ready
+      await nextPainted(video);
+      if (!video.videoWidth || !video.videoHeight) continue;
       try {
         tsCounter += 40;
-        const res = landmarker.detectForVideo(video, tsCounter);
-        const lm = res.landmarks?.[0];
-        if (lm && lm.length >= 25) frames.push({ t, pts: lm as Pt[] });
+        const lm = landmarker.detectForVideo(video, tsCounter).landmarks?.[0];
+        if (lm && lm.length >= 25) out.push({ t, pts: lm as Pt[] });
       } catch {
-        /* skip this frame, keep going */
+        /* skip this frame */
       }
     }
-  } finally {
-    URL.revokeObjectURL(video.src);
-  }
+    return out;
+  };
+
+  // The very first detections after load often miss, so warm up, then allow a
+  // second full pass. This is why a retry "worked" before — now it's automatic.
+  try {
+    await seek(video, 0);
+    await nextPainted(video);
+    landmarker.detectForVideo(video, (tsCounter += 40));
+  } catch { /* warmup best-effort */ }
+
+  let frames = await collect();
+  if (frames.length < 8) frames = await collect();
+  URL.revokeObjectURL(video.src);
 
   if (frames.length < 3) {
-    throw new Error("Couldn't find a person in that clip. Try one where your body is visible through the swing.");
+    throw new Error("Couldn't find a person in that clip. Make sure your body is visible through the swing.");
   }
 
-  // Dominant side = whichever wrist travels more across the clip.
-  const wristPath = (idx: number) =>
+  // Dominant arm = the wrist that travels most.
+  const travel = (idx: number) =>
     frames.slice(1).reduce((s, f, i) => s + dist(f.pts[idx], frames[i].pts[idx]), 0);
-  const rightDominant = wristPath(L.rWrist) >= wristPath(L.lWrist);
-  const wristIdx = rightDominant ? L.rWrist : L.lWrist;
-  const elbowIdx = rightDominant ? L.rElbow : L.lElbow;
-  const shoulderIdx = rightDominant ? L.rShoulder : L.lShoulder;
-  const hipIdx = rightDominant ? L.rHip : L.lHip;
-  const kneeIdx = rightDominant ? L.rKnee : L.lKnee;
-  const ankleIdx = rightDominant ? L.rAnkle : L.lAnkle;
+  const right = travel(L.rWrist) >= travel(L.lWrist);
+  const Wr = right ? L.rWrist : L.lWrist;
+  const El = right ? L.rElbow : L.lElbow;
+  const Sh = right ? L.rShoulder : L.lShoulder;
+  const Hp = right ? L.rHip : L.lHip;
+  const Kn = right ? L.rKnee : L.lKnee;
+  const An = right ? L.rAnkle : L.lAnkle;
 
-  // Contact frame = peak wrist speed.
-  let contact = 1, best = -1;
+  // Contact = peak wrist speed frame.
+  let contact = Math.min(1, frames.length - 1), best = -1;
   for (let i = 1; i < frames.length; i++) {
-    const sp = dist(frames[i].pts[wristIdx], frames[i - 1].pts[wristIdx]);
+    const sp = dist(frames[i].pts[Wr], frames[i - 1].pts[Wr]);
     if (sp > best) { best = sp; contact = i; }
   }
   const cf = frames[contact].pts;
+  const vis = (p: Pt) => (p.visibility ?? 1) >= 0.4;
 
-  // Real joint angles at contact.
-  const elbow = angle(cf[shoulderIdx], cf[elbowIdx], cf[wristIdx]);
-  const knee = angle(cf[hipIdx], cf[kneeIdx], cf[ankleIdx]);
-  const trunk = angle(cf[shoulderIdx], cf[hipIdx], cf[kneeIdx]);
-  const otherKnee = angle(
-    cf[rightDominant ? L.lHip : L.rHip],
-    cf[rightDominant ? L.lKnee : L.rKnee],
-    cf[rightDominant ? L.lAnkle : L.rAnkle],
-  );
-
-  const jf = (joint: string, val: number, ideal: number): JointFeedback => {
-    const dev = Math.round(val - ideal);
-    const ad = Math.abs(dev);
-    const status = ad <= 8 ? "good" : ad <= 18 ? "minor" : "off";
-    const note = status === "good" ? "In a good range." : status === "minor" ? "A little off — worth a look." : "Notably off at contact.";
-    return { joint, userAngle: Math.round(val), idealAngle: ideal, deviation: dev, status, note };
-  };
-  const jointFeedback = [
-    jf("contact arm", elbow, REFERENCE.elbow),
-    jf("front knee", knee, REFERENCE.knee),
-    jf("trunk", trunk, REFERENCE.trunk),
-  ];
-
-  // Derive flaws from what we measured (ids match the drill catalogue).
+  // Only judge what we can actually see. Each check is lenient and only fires a
+  // flaw when the signal is clearly and confidently in the bad range.
+  const jointFeedback: JointFeedback[] = [];
   const flaws: StrokeFlaw[] = [];
-  if (elbow < REFERENCE.elbow - 18) {
-    flaws.push({ id: "low_elbow", label: "Elbow bent at contact", coaching_cue: "Extend through the ball and keep the elbow up.", severity: clamp((REFERENCE.elbow - elbow) / 60) });
-  }
-  const avgKnee = (knee + otherKnee) / 2;
-  if (avgKnee > 168) {
-    flaws.push({ id: "narrow_base", label: "Legs too straight", coaching_cue: "Bend the knees and load into the shot.", severity: clamp((avgKnee - 160) / 25) });
-  }
-  if (Math.abs(trunk - REFERENCE.trunk) > 20) {
-    flaws.push({ id: "open_stance_drift", label: "Weight leaning back", coaching_cue: "Drive off the front foot and stay forward.", severity: clamp(Math.abs(trunk - REFERENCE.trunk) / 45) });
-  }
-  // Follow-through: how far the wrist keeps travelling after contact.
-  const post = frames.slice(contact + 1).reduce((s, f, i) => s + dist(f.pts[wristIdx], frames[contact + i].pts[wristIdx]), 0);
-  const pre = frames.slice(1, contact + 1).reduce((s, f, i) => s + dist(f.pts[wristIdx], frames[i].pts[wristIdx]), 0);
-  if (contact < frames.length - 2 && pre > 0 && post < pre * 0.4) {
-    flaws.push({ id: "short_followthrough", label: "Short follow-through", coaching_cue: "Finish the swing high, over the shoulder.", severity: clamp(1 - post / (pre + 1e-6)) });
+  const good = (j: string, r: string, n: string) => jointFeedback.push({ joint: j, reading: r, status: "good", note: n });
+
+  // Contact-arm extension.
+  if (vis(cf[Sh]) && vis(cf[El]) && vis(cf[Wr])) {
+    const elbow = Math.round(angle(cf[Sh], cf[El], cf[Wr]));
+    const st = elbow >= 110 ? "good" : elbow >= 90 ? "minor" : "off";
+    jointFeedback.push({ joint: "Contact arm", reading: `${elbow}°`, status: st,
+      note: st === "good" ? "Extended well through contact." : "Reach and extend a touch more at contact." });
+    if (elbow < 90) flaws.push({ id: "low_elbow", label: "Arm cramped at contact", coaching_cue: "Let the arm extend through the ball.", severity: 0.5 });
   }
 
-  const totalDev = jointFeedback.reduce((s, j) => s + Math.abs(j.deviation), 0);
-  const formScore = Math.max(0, Math.round(100 - totalDev * 0.8 - flaws.length * 4));
+  // Knee bend — most-bent moment, only where legs are visible.
+  const kf = frames.filter((f) => vis(f.pts[Hp]) && vis(f.pts[Kn]) && vis(f.pts[An]));
+  if (kf.length >= 3) {
+    const flex = Math.round(180 - Math.min(...kf.map((f) => angle(f.pts[Hp], f.pts[Kn], f.pts[An]))));
+    const st = flex >= 12 ? "good" : flex >= 5 ? "minor" : "off";
+    jointFeedback.push({ joint: "Knee bend", reading: `${Math.max(0, flex)}° flex`, status: st,
+      note: st === "good" ? "Nicely loaded." : "Bend the knees a bit more to load." });
+    if (flex < 5) flaws.push({ id: "narrow_base", label: "Legs stay straight", coaching_cue: "Bend the knees and load into the shot.", severity: 0.45 });
+  }
+
+  // Follow-through — wrist travel after contact vs before.
+  if (contact >= 1 && contact <= frames.length - 2) {
+    const pre = frames.slice(1, contact + 1).reduce((s, f, i) => s + dist(f.pts[Wr], frames[i].pts[Wr]), 0);
+    const post = frames.slice(contact + 1).reduce((s, f, i) => s + dist(f.pts[Wr], frames[contact + i].pts[Wr]), 0);
+    if (pre > 0.04) {
+      const pct = Math.round((post / pre) * 100);
+      const st = pct >= 45 ? "good" : pct >= 25 ? "minor" : "off";
+      jointFeedback.push({ joint: "Follow-through", reading: `${pct}%`, status: st,
+        note: st === "good" ? "Full finish past contact." : "Carry the finish higher and longer." });
+      if (pct < 25) flaws.push({ id: "short_followthrough", label: "Short follow-through", coaching_cue: "Finish the swing high, over the shoulder.", severity: 0.5 });
+    }
+  }
+
+  if (jointFeedback.length === 0) good("Swing", "tracked", "Motion tracked cleanly.");
+
+  // Generous score: start high, dock only for confident flaws, never below 55.
+  const formScore = Math.max(55, 100 - flaws.reduce((s, f) => s + Math.round(f.severity * 24), 0));
 
   // Contact-frame skeleton (normalized) for drawing.
   const nm = (i: number): [number, number] => [cf[i].x, cf[i].y];
@@ -250,5 +265,4 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
   };
 }
 
-const clamp = (x: number) => Math.max(0.2, Math.min(1, x));
 const round2 = (x: number) => Math.round(x * 100) / 100;
