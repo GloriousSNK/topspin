@@ -24,7 +24,7 @@ def workout_from_flaws(req: WorkoutFromFlawsRequest, background: BackgroundTasks
     workout = drills_engine.generate_from_flaws(
         flaws=[f.model_dump() for f in req.flaws], level=req.level, max_minutes=req.max_minutes
     )
-    background.add_task(analytics.record_action, "workout")
+    background.add_task(analytics.record_action, "workout", len(workout.drills))
     return workout.to_dict()
 
 
@@ -34,5 +34,5 @@ def workout_by_goal(req: WorkoutByGoalRequest, background: BackgroundTasks):
     workout = drills_engine.generate_by_goal(
         goal=req.goal, level=req.level, max_minutes=req.max_minutes
     )
-    background.add_task(analytics.record_action, "workout")
+    background.add_task(analytics.record_action, "workout", len(workout.drills))
     return workout.to_dict()

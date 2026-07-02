@@ -83,6 +83,7 @@ def predict_ball(req: PredictBallRequest, background: BackgroundTasks):
             "samples": ens.samples,
         }
 
-    # Count the simulation without adding latency to the response.
-    background.add_task(analytics.record_action, "sim")
+    # Count the simulation + how many landings it actually simulated.
+    landings = req.ensemble_samples if req.run_chaos else 1
+    background.add_task(analytics.record_action, "sim", landings)
     return _sanitize(result)

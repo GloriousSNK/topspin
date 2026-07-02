@@ -67,6 +67,7 @@ def _ensure_schema() -> None:
                         id       BIGSERIAL PRIMARY KEY,
                         ts       DOUBLE PRECISION NOT NULL,
                         kind     TEXT NOT NULL DEFAULT 'view',
+                        n        BIGINT NOT NULL DEFAULT 1,
                         path     TEXT NOT NULL,
                         session  TEXT NOT NULL,
                         referrer TEXT
@@ -79,6 +80,7 @@ def _ensure_schema() -> None:
                         id       INTEGER PRIMARY KEY AUTOINCREMENT,
                         ts       REAL NOT NULL,
                         kind     TEXT NOT NULL DEFAULT 'view',
+                        n        INTEGER NOT NULL DEFAULT 1,
                         path     TEXT NOT NULL,
                         session  TEXT NOT NULL,
                         referrer TEXT
@@ -89,20 +91,24 @@ def _ensure_schema() -> None:
         finally:
             conn.close()
 
-        # Migrate any pre-existing table that lacks the `kind` column.
-        try:
-            mconn = _raw_conn()
-            mcur = mconn.cursor()
-            if _USE_PG:
-                mcur.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'view'")
-            else:
-                cols = [r[1] for r in mcur.execute("PRAGMA table_info(events)").fetchall()]
-                if "kind" not in cols:
-                    mcur.execute("ALTER TABLE events ADD COLUMN kind TEXT NOT NULL DEFAULT 'view'")
-            mconn.commit()
-            mconn.close()
-        except Exception:
-            pass
+        # Migrate pre-existing tables that lack the newer columns.
+        for col, ddl_pg, ddl_sqlite in (
+            ("kind", "TEXT NOT NULL DEFAULT 'view'", "TEXT NOT NULL DEFAULT 'view'"),
+            ("n", "BIGINT NOT NULL DEFAULT 1", "INTEGER NOT NULL DEFAULT 1"),
+        ):
+            try:
+                mconn = _raw_conn()
+                mcur = mconn.cursor()
+                if _USE_PG:
+                    mcur.execute(f"ALTER TABLE events ADD COLUMN IF NOT EXISTS {col} {ddl_pg}")
+                else:
+                    cols = [r[1] for r in mcur.execute("PRAGMA table_info(events)").fetchall()]
+                    if col not in cols:
+                        mcur.execute(f"ALTER TABLE events ADD COLUMN {col} {ddl_sqlite}")
+                mconn.commit()
+                mconn.close()
+            except Exception:
+                pass
 
         _initialised = True
 
@@ -147,72 +153,111 @@ def _ref_origin(url: str | None) -> str:
 _KINDS = {"view", "help", "sim", "workout"}
 
 
-def record(path: str, session: str, referrer: str | None, kind: str = "view") -> None:
-    """Insert one event. `kind` is 'view' or an action ('help'/'sim'/'workout')."""
+def record(path: str, session: str, referrer: str | None, kind: str = "view", n: int = 1) -> None:
+    """Insert one event. `kind` is 'view' or an action; `n` is its work magnitude."""
     p = _clean_path(path)
     s = _clip(session, MAX_SESSION, "anon")
     r = _ref_origin(referrer)
     k = kind if kind in _KINDS else "view"
+    nn = max(1, min(int(n or 1), 10_000_000))
     with _write_lock:
         conn = _conn()
         try:
             cur = conn.cursor()
             cur.execute(
-                f"INSERT INTO events (ts, kind, path, session, referrer) "
-                f"VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH})",
-                (time.time(), k, p, s, r),
+                f"INSERT INTO events (ts, kind, n, path, session, referrer) "
+                f"VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH})",
+                (time.time(), k, nn, p, s, r),
             )
             # Prune occasionally — the COUNT(*) scan is O(n); don't run it every write.
             if random.random() < 0.02:
                 cur.execute("SELECT COUNT(*) FROM events")
-                n = cur.fetchone()[0]
-                if n > MAX_ROWS:
+                cnt = cur.fetchone()[0]
+                if cnt > MAX_ROWS:
                     cur.execute(
                         f"DELETE FROM events WHERE id IN "
                         f"(SELECT id FROM events ORDER BY id ASC LIMIT {_PH})",
-                        (n - MAX_ROWS,),
+                        (cnt - MAX_ROWS,),
                     )
             conn.commit()
         finally:
             conn.close()
 
 
-def record_action(kind: str, session: str | None = None) -> None:
+def record_action(kind: str, n: int = 1, session: str | None = None) -> None:
     """Log one useful action (analysis/simulation/workout). Never raises."""
     try:
-        record(f"/{kind}", session or "anon", None, kind=kind)
+        record(f"/{kind}", session or "anon", None, kind=kind, n=n)
     except Exception:
         pass
 
 
+# Fixed, real per-unit costs of the work each action performs (see routers).
+RK4_STEPS_PER_SHOT = 450      # ~1.8s flight at dt=4ms
+TRAJ_POINTS_PER_SIM = 120     # downsampled path returned to the browser
+KEYPOINTS_PER_FRAME = 33      # BlazePose landmarks per analysed frame
+
+
 def stats() -> dict:
-    """Return aggregate stats in a single query — no per-user data leaves here."""
+    """Aggregate stats: real traffic counts plus real computational totals."""
     now = time.time()
-    day_ago = now - DAY
+    t1, t7, t30 = now - DAY, now - 7 * DAY, now - 30 * DAY
     conn = _conn()
     try:
         cur = conn.cursor()
-        # One pass over the table: conditional aggregation is portable across
-        # SQLite and Postgres and avoids five separate round-trips to the DB.
         cur.execute(
             f"""SELECT
-                SUM(CASE WHEN kind IN ('help','sim','workout') THEN 1 ELSE 0 END),
                 SUM(CASE WHEN kind = 'view' THEN 1 ELSE 0 END),
                 COUNT(DISTINCT CASE WHEN kind = 'view' THEN session END),
                 SUM(CASE WHEN kind = 'view' AND ts >= {_PH} THEN 1 ELSE 0 END),
-                COUNT(DISTINCT CASE WHEN kind = 'view' AND ts >= {_PH} THEN session END)
+                COUNT(DISTINCT CASE WHEN kind = 'view' AND ts >= {_PH} THEN session END),
+                COUNT(DISTINCT CASE WHEN kind = 'view' AND ts >= {_PH} THEN session END),
+                COUNT(DISTINCT CASE WHEN kind = 'view' AND ts >= {_PH} THEN session END),
+                SUM(CASE WHEN kind = 'help' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN kind = 'sim' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN kind = 'workout' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN kind = 'help' THEN n ELSE 0 END),
+                SUM(CASE WHEN kind = 'sim' THEN n ELSE 0 END),
+                SUM(CASE WHEN kind = 'workout' THEN n ELSE 0 END),
+                COUNT(*)
             FROM events""",
-            (day_ago, day_ago),
+            (t1, t1, t7, t30),
         )
-        row = cur.fetchone() or (0, 0, 0, 0, 0)
+        r = [int(x or 0) for x in (cur.fetchone() or [0] * 13)]
+
+        # Returning visitors: sessions whose views span more than a day.
+        cur.execute(
+            "SELECT COUNT(*) FROM (SELECT session FROM events WHERE kind = 'view' "
+            "GROUP BY session HAVING MAX(ts) - MIN(ts) > 86400) t"
+        )
+        returning = int((cur.fetchone() or [0])[0] or 0)
     finally:
         conn.close()
 
+    (views, visitors, views_24h, active_24h, active_7d, active_30d,
+     analyses, sims, workouts, pose_frames, landing_pts, drills, total_events) = r
+
     return {
-        "people_helped": int(row[0] or 0),
-        "total_views": int(row[1] or 0),
-        "unique_visitors": int(row[2] or 0),
-        "views_today": int(row[3] or 0),
-        "active_today": int(row[4] or 0),
+        # traffic
+        "unique_visitors": visitors,
+        "returning_visitors": returning,
+        "active_today": active_24h,
+        "active_7d": active_7d,
+        "active_30d": active_30d,
+        "total_views": views,
+        "views_today": views_24h,
+        "total_events": total_events,
+        # product usage
+        "people_helped": analyses + sims + workouts,
+        "analyses_run": analyses,
+        "simulations_run": sims,
+        "workouts_built": workouts,
+        # real computational work performed
+        "landing_points_simulated": landing_pts,
+        "physics_steps": landing_pts * RK4_STEPS_PER_SHOT,
+        "trajectory_points": sims * TRAJ_POINTS_PER_SIM,
+        "frames_analysed": pose_frames,
+        "keypoints_tracked": pose_frames * KEYPOINTS_PER_FRAME,
+        "drills_prescribed": drills,
         "generated_at": now,
     }
