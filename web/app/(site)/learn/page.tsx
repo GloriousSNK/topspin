@@ -129,16 +129,13 @@ export default function Learn() {
           <span className="eyebrow">The other half</span>
           <h2 className="section-title">And the video side?</h2>
           <p style={{ color: "var(--ink-soft)", fontSize: 16, lineHeight: 1.7 }}>
-            The physics is one half of TopSpin; reading your stroke is the other. A video model
-            (V-JEPA) learns what a stroke <i>looks like</i> over time, which lets it name the shot,
-            split it into phases and flag what&apos;s off. Pose estimation then pins down where your
-            joints are frame by frame, so we can compare your angles to a clean reference.
+            The physics is one half of TopSpin; reading your stroke is the other. A pose model finds
+            your body&apos;s joints in each frame of your clip, right in the browser. From those we
+            pick the contact moment, measure your angles, and compare them to sensible targets.
           </p>
           <p style={{ color: "var(--ink-soft)", fontSize: 16, lineHeight: 1.7, marginTop: 14 }}>
-            Being straight with you: the physics here is fully real, while the video models are
-            currently served as structured stand-ins so the whole app runs end to end today. Swapping
-            in the trained weights changes one module at a time and nothing you see on screen. More on
-            that on the <Link href="/about" style={{ color: "var(--court)", fontWeight: 600 }}>about page</Link>.
+            It runs on your device, so your clip never leaves your machine. More on the{" "}
+            <Link href="/about" style={{ color: "var(--court)", fontWeight: 600 }}>about page</Link>.
           </p>
         </div>
       </section>

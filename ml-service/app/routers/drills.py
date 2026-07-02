@@ -1,10 +1,11 @@
 """Drill & workout generation endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 
 from ..schemas import WorkoutFromFlawsRequest, WorkoutByGoalRequest
 from ..core import drills_engine
 from ..ratelimit import RateLimiter, rate_limit
+from .. import analytics
 
 router = APIRouter(prefix="/drills", tags=["drills"])
 
@@ -18,18 +19,20 @@ def catalogue():
 
 
 @router.post("/from-flaws", dependencies=[_limit])
-def workout_from_flaws(req: WorkoutFromFlawsRequest):
+def workout_from_flaws(req: WorkoutFromFlawsRequest, background: BackgroundTasks):
     """Build a personalised session from detected flaws."""
     workout = drills_engine.generate_from_flaws(
         flaws=[f.model_dump() for f in req.flaws], level=req.level, max_minutes=req.max_minutes
     )
+    background.add_task(analytics.record_action, "workout")
     return workout.to_dict()
 
 
 @router.post("/by-goal", dependencies=[_limit])
-def workout_by_goal(req: WorkoutByGoalRequest):
+def workout_by_goal(req: WorkoutByGoalRequest, background: BackgroundTasks):
     """Build a workout from a high-level goal when there's no clip analysis."""
     workout = drills_engine.generate_by_goal(
         goal=req.goal, level=req.level, max_minutes=req.max_minutes
     )
+    background.add_task(analytics.record_action, "workout")
     return workout.to_dict()

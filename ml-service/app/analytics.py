@@ -143,12 +143,16 @@ def _ref_origin(url: str | None) -> str:
     return ""
 
 
+# 'view' = pageview; the rest are the useful actions that count toward "helped".
+_KINDS = {"view", "help", "sim", "workout"}
+
+
 def record(path: str, session: str, referrer: str | None, kind: str = "view") -> None:
-    """Insert one event. `kind` is 'view' (a pageview) or 'help' (an AI analysis)."""
+    """Insert one event. `kind` is 'view' or an action ('help'/'sim'/'workout')."""
     p = _clean_path(path)
     s = _clip(session, MAX_SESSION, "anon")
     r = _ref_origin(referrer)
-    k = "help" if kind == "help" else "view"
+    k = kind if kind in _KINDS else "view"
     with _write_lock:
         conn = _conn()
         try:
@@ -173,47 +177,42 @@ def record(path: str, session: str, referrer: str | None, kind: str = "view") ->
             conn.close()
 
 
-def record_help(session: str | None = None) -> None:
-    """Log one AI analysis ('a person helped'). Never raises to its caller."""
+def record_action(kind: str, session: str | None = None) -> None:
+    """Log one useful action (analysis/simulation/workout). Never raises."""
     try:
-        record("/analyze", session or "anon", None, kind="help")
+        record(f"/{kind}", session or "anon", None, kind=kind)
     except Exception:
         pass
 
 
 def stats() -> dict:
-    """Return aggregate stats — no per-user data leaves this function."""
+    """Return aggregate stats in a single query — no per-user data leaves here."""
     now = time.time()
+    day_ago = now - DAY
     conn = _conn()
     try:
         cur = conn.cursor()
-        # 'help' events = AI analyses run = people helped.
-        cur.execute(f"SELECT COUNT(*) FROM events WHERE kind = {_PH}", ("help",))
-        people_helped = cur.fetchone()[0]
-        # 'view' events = pageviews / visitors.
-        cur.execute(f"SELECT COUNT(*) FROM events WHERE kind = {_PH}", ("view",))
-        total = cur.fetchone()[0]
-        cur.execute(f"SELECT COUNT(DISTINCT session) FROM events WHERE kind = {_PH}", ("view",))
-        unique = cur.fetchone()[0]
+        # One pass over the table: conditional aggregation is portable across
+        # SQLite and Postgres and avoids five separate round-trips to the DB.
         cur.execute(
-            f"SELECT COUNT(*) FROM events WHERE kind = {_PH} AND ts >= {_PH}",
-            ("view", now - DAY),
+            f"""SELECT
+                SUM(CASE WHEN kind IN ('help','sim','workout') THEN 1 ELSE 0 END),
+                SUM(CASE WHEN kind = 'view' THEN 1 ELSE 0 END),
+                COUNT(DISTINCT CASE WHEN kind = 'view' THEN session END),
+                SUM(CASE WHEN kind = 'view' AND ts >= {_PH} THEN 1 ELSE 0 END),
+                COUNT(DISTINCT CASE WHEN kind = 'view' AND ts >= {_PH} THEN session END)
+            FROM events""",
+            (day_ago, day_ago),
         )
-        today = cur.fetchone()[0]
-        cur.execute(
-            f"SELECT COUNT(DISTINCT session) FROM events WHERE kind = {_PH} AND ts >= {_PH}",
-            ("view", now - DAY),
-        )
-        active_today = cur.fetchone()[0]
-
+        row = cur.fetchone() or (0, 0, 0, 0, 0)
     finally:
         conn.close()
 
     return {
-        "people_helped": int(people_helped),
-        "total_views": int(total),
-        "unique_visitors": int(unique),
-        "views_today": int(today),
-        "active_today": int(active_today),
+        "people_helped": int(row[0] or 0),
+        "total_views": int(row[1] or 0),
+        "unique_visitors": int(row[2] or 0),
+        "views_today": int(row[3] or 0),
+        "active_today": int(row[4] or 0),
         "generated_at": now,
     }

@@ -31,48 +31,46 @@ export default function Privacy() {
 
         <Section title="What we collect">
           <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
-            <li>• An <strong style={{ color: "var(--ink)" }}>anonymous id</strong> generated at random and kept in your browser&apos;s local storage. It isn&apos;t tied to your name, email, or anything about you — it just lets us tell a returning browser from a new one.</li>
-            <li>• The <strong style={{ color: "var(--ink)" }}>page paths</strong> you view on this site (e.g. <code className="mono">/learn</code>). Any query string is stripped before it&apos;s ever stored.</li>
-            <li>• A <strong style={{ color: "var(--ink)" }}>count</strong> each time a clip is submitted for AI analysis — this is the &quot;people helped&quot; number.</li>
-            <li>• The <strong style={{ color: "var(--ink)" }}>origin</strong> of the site that linked you here (e.g. <code className="mono">https://google.com</code>) — never the full URL.</li>
+            <li>• An <strong style={{ color: "var(--ink)" }}>anonymous id</strong> kept in your browser&apos;s local storage. It isn&apos;t tied to your name or email; it just tells a returning browser from a new one.</li>
+            <li>• The <strong style={{ color: "var(--ink)" }}>page paths</strong> you view (e.g. <code className="mono">/learn</code>). Query strings are stripped before anything is stored.</li>
+            <li>• A <strong style={{ color: "var(--ink)" }}>tally</strong> of analyses, simulations, and workouts run. Just counts, with nothing tied to you.</li>
+            <li>• The <strong style={{ color: "var(--ink)" }}>origin</strong> of the site that linked you here (e.g. <code className="mono">https://google.com</code>), never the full URL.</li>
           </ul>
         </Section>
 
         <Section title="What we never collect">
           <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
-            <li>• No names, emails, or accounts — there&apos;s nothing to sign up for.</li>
+            <li>• No names, emails, or accounts. There&apos;s nothing to sign up for.</li>
             <li>• No cookies and no third-party analytics, ads, or social pixels.</li>
-            <li>• No <strong style={{ color: "var(--ink)" }}>IP addresses stored</strong>. Your IP is used for a split second only to rate-limit abuse, then discarded — it&apos;s never written down.</li>
+            <li>• No <strong style={{ color: "var(--ink)" }}>IP addresses stored</strong>. Your IP is used for a split second to rate-limit abuse, then discarded.</li>
             <li>• No mouse movement, scroll tracking, keystrokes, or device fingerprinting.</li>
           </ul>
         </Section>
 
-        <Section title="Video clips you upload">
-          Clips you send for analysis are stored temporarily on the server only to run the analysis,
-          and are removed automatically as storage cycles. They aren&apos;t shared, sold, or used to
-          train anything, and they aren&apos;t linked to your identity.
+        <Section title="Your video clips">
+          Clip analysis runs entirely in your browser. Your video is never uploaded, never stored, and
+          never leaves your device. When you close the tab, it&apos;s gone.
         </Section>
 
         <Section title="Where the data lives">
-          Everything is kept in our own database — no analytics SaaS is involved, so your activity
-          isn&apos;t handed off to a third party. Traffic records are capped and old ones are pruned
-          automatically; they aren&apos;t retained indefinitely.
+          Everything sits in our own database, with no analytics SaaS in the loop. Traffic records are
+          capped and old ones are pruned automatically, so nothing is kept indefinitely.
         </Section>
 
         <Section title="Your control">
-          Because the only identifier is stored in your browser, you can reset it any time by clearing
-          this site&apos;s local storage (or using a private window). There&apos;s nothing server-side
-          tied to you to delete.
+          The only identifier lives in your browser, so you can reset it any time by clearing this
+          site&apos;s local storage or using a private window. There&apos;s nothing server-side tied to
+          you to delete.
         </Section>
 
         <Section title="Changes">
-          If this policy ever changes, the updated version will live on this page. Questions? See the{" "}
+          If this policy changes, the new version lives here. Questions? See the{" "}
           <Link href="/about" style={{ color: "var(--court)", fontWeight: 600 }}>about page</Link>.
         </Section>
 
         <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 8 }}>
-          TopSpin is a personal project and this policy describes a good-faith, plain-English summary
-          of how it handles data — it isn&apos;t legal advice.
+          TopSpin is a personal project. This is a good-faith, plain-English summary of how it handles
+          data, not legal advice.
         </p>
       </div>
     </section>

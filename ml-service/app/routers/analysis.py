@@ -106,8 +106,8 @@ async def upload_clip(
         dest.unlink(missing_ok=True)
         raise HTTPException(400, "Empty file.")
 
-    # Count this as one "person helped" (a clip submitted for AI analysis).
-    analytics.record_help(session=clip_id)
+    # Count this as one AI analysis.
+    analytics.record_action("help", session=clip_id)
 
     return {
         "clip_id": clip_id,

@@ -31,6 +31,16 @@ def track(ev: TrackIn, request: Request):
     return {"ok": True}
 
 
+@router.post("/analysis")
+def analysis_done(request: Request):
+    """Count one on-device stroke analysis (no clip is uploaded)."""
+    ip = request.client.host if request.client else "?"
+    if not _track_limiter.allow(ip):
+        return {"ok": False, "throttled": True}
+    analytics.record_action("help")
+    return {"ok": True}
+
+
 @router.get("/stats")
 def stats():
     """Aggregate traffic stats for the Insights dashboard."""

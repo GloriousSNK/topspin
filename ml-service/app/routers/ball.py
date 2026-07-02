@@ -5,12 +5,13 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 
 from ..schemas import PredictBallRequest
 from ..core.ball_physics import LaunchState, simulate
 from ..core.chaos import finite_time_lyapunov, landing_ensemble
 from ..ratelimit import RateLimiter, rate_limit
+from .. import analytics
 
 router = APIRouter(prefix="/predict", tags=["ball"])
 
@@ -30,7 +31,7 @@ def _sanitize(obj):
 
 
 @router.post("/ball", dependencies=[_limit])
-def predict_ball(req: PredictBallRequest):
+def predict_ball(req: PredictBallRequest, background: BackgroundTasks):
     """
     Integrate the shot, and (optionally) run the chaos/sensitivity analysis.
 
@@ -82,4 +83,6 @@ def predict_ball(req: PredictBallRequest):
             "samples": ens.samples,
         }
 
+    # Count the simulation without adding latency to the response.
+    background.add_task(analytics.record_action, "sim")
     return _sanitize(result)

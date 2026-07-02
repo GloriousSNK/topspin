@@ -6,7 +6,6 @@ import type {
   ClipAnalysis,
   Workout,
   CatalogueDrill,
-  Flaw,
   TrafficStats,
 } from "./types";
 
@@ -54,8 +53,11 @@ export const api = {
 
   catalogue: () => get<{ drills: CatalogueDrill[] }>("/drills/catalogue"),
 
-  workoutFromFlaws: (flaws: Flaw[], level = "intermediate", maxMinutes = 45) =>
-    post<Workout>("/drills/from-flaws", { flaws, level, max_minutes: maxMinutes }),
+  workoutFromFlaws: (
+    flaws: Array<{ id: string; label?: string; severity?: number; coaching_cue?: string }>,
+    level = "intermediate",
+    maxMinutes = 45,
+  ) => post<Workout>("/drills/from-flaws", { flaws, level, max_minutes: maxMinutes }),
 
   workoutByGoal: (goal: string, level = "intermediate", maxMinutes = 45) =>
     post<Workout>("/drills/by-goal", { goal, level, max_minutes: maxMinutes }),
@@ -79,4 +81,13 @@ export const api = {
   },
 
   stats: () => get<TrafficStats>("/analytics/stats"),
+
+  // Count one on-device analysis. Fire-and-forget; never throws.
+  recordAnalysis: () => {
+    try {
+      fetch(`${BASE}/analytics/analysis`, { method: "POST", keepalive: true }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  },
 };

@@ -7,14 +7,16 @@ const isDev = process.env.NODE_ENV !== "production";
 const ML = process.env.NEXT_PUBLIC_ML_URL ?? "http://127.0.0.1:8000";
 const ML_ORIGINS = `${ML} http://127.0.0.1:8000 http://localhost:8000`;
 
+// Origins the in-browser pose model needs: WASM from jsDelivr, model from GCS.
+const POSE_ORIGINS = "https://cdn.jsdelivr.net https://storage.googleapis.com";
+
 // style-src keeps 'unsafe-inline' because the app uses inline style attributes
 // pervasively (style injection is low-risk, ~defacement only).
-// script-src: 'unsafe-eval' is dev/HMR-only and is dropped in production. We
-// keep 'unsafe-inline' for now because Next injects inline bootstrap scripts;
-// fully removing it needs a per-request nonce via middleware (next step).
+// script-src: 'unsafe-eval' is dev/HMR-only and dropped in production;
+// 'wasm-unsafe-eval' is required for the MediaPipe pose WASM runtime.
 const scriptSrc = isDev
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-  : "script-src 'self' 'unsafe-inline'";
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'"
+  : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'";
 
 const csp = [
   "default-src 'self'",
@@ -23,7 +25,8 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   scriptSrc,
   "font-src 'self' data:",
-  `connect-src 'self' ${ML_ORIGINS}`,
+  `connect-src 'self' ${ML_ORIGINS} ${POSE_ORIGINS}`,
+  "worker-src 'self' blob:",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",

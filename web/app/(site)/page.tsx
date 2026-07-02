@@ -5,7 +5,7 @@ import HeroTilt from "@/components/HeroTilt";
 export const metadata: Metadata = {
   title: "TopSpin — AI Tennis Practice Lab",
   description:
-    "Upload a clip, get your stroke analysed by a V-JEPA video model, turn flaws into a " +
+    "Upload a clip, get your stroke analysed by in-browser pose detection, turn flaws into a " +
     "targeted session, and predict ball flight with real drag + Magnus physics and chaos analysis.",
 };
 
@@ -79,16 +79,16 @@ export default function Landing() {
           <FeatureRow
             tag="Clip Analysis"
             title="See your stroke the way a coach does"
-            body="A video model watches your swing, names the shot, splits it into phases, and points out the specific things going wrong — in the kind of language a coach would actually use."
-            points={["Phase-by-phase breakdown", "Flaws ranked by how much they cost you", "Plain cues, not jargon"]}
+            body="Pose detection tracks your body through the swing and checks your angles at contact, then tells you what's off in plain language. Real feedback from your own clip, not generic tips."
+            points={["Runs right on your device", "Real joint angles at contact", "Flaws tied to what you did"]}
             media={<MiniPhases />}
           />
           <FeatureRow
             rev
             tag="Form Comparison"
-            title="Line your form up against the ideal"
-            body="We map your joints and overlay them on a clean reference stroke, so you can see which angle is off and by exactly how much, instead of guessing from a slow-mo replay."
-            points={["Per-joint angle differences", "A single 0–100 form score", "Your contact frame vs the model's"]}
+            title="Line your form up against the target"
+            body="Your contact position gets measured against target angles for the arm, knees and trunk, so you know exactly what to adjust instead of guessing from a slow-mo replay."
+            points={["Per-joint difference from target", "A single 0–100 form score", "Your real contact frame, drawn out"]}
             media={<MiniSkeleton />}
           />
           <FeatureRow
@@ -102,7 +102,7 @@ export default function Landing() {
             rev
             tag="Ball Lab"
             title="See where the ball really goes"
-            body="Set the speed, spin and angle, and watch the flight with drag and spin included — not a smooth parabola. Then find out how forgiving that shot actually is before you try it for real."
+            body="Set the speed, spin and angle, and watch the flight with drag and spin included, not a smooth parabola. Then see how forgiving that shot actually is before you try it for real."
             points={["Real drag + spin (Magnus) flight", "How sensitive the shot is to small errors", "Landing spread and in/out odds"]}
             media={<MiniTrajectory />}
           />
@@ -140,11 +140,11 @@ export default function Landing() {
               <span className="eyebrow">What&apos;s under the hood</span>
               <h2 className="section-title">A struck ball is a tiny chaotic system. We treat it like one.</h2>
               <p className="section-lead">
-                Once it leaves the strings the ball feels three things: gravity, drag pushing back
-                along its path, and the Magnus force from spin nudging it sideways. Drag grows with
-                the square of speed and spin keeps bending the flight, so there&apos;s no neat
-                formula for where it lands — you have to march the motion forward in tiny steps. And
-                because it&apos;s nonlinear, two almost-identical contacts can finish a metre apart.
+                Once it leaves the strings the ball feels gravity, drag, and the Magnus force from
+                spin. Drag grows with the square of speed and spin keeps bending the flight, so
+                there&apos;s no neat formula for where it lands. You have to march the motion forward
+                in tiny steps, and because it&apos;s nonlinear, two almost-identical contacts can
+                finish a metre apart.
               </p>
               <ul className="feature-text" style={{ marginTop: 8 }}>
                 <li>We simulate the real flight, spin and air included, instead of drawing a smooth arc</li>

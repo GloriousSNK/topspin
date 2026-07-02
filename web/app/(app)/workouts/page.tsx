@@ -35,9 +35,8 @@ export default function Workouts() {
     <div>
       <div className="h1">Drills & Workouts</div>
       <p className="lead">
-        Generate a time-boxed session from a training goal, or browse the full drill catalogue.
-        Each drill is tagged with the technical flaws it targets, so sessions built from a clip
-        analysis pull straight from here.
+        Build a time-boxed session from a goal, or browse the full catalogue. Each drill is tagged
+        with the flaws it targets, so sessions from a clip analysis pull straight from here.
       </p>
 
       <div className="card" style={{ marginBottom: 18 }}>

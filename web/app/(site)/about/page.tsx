@@ -32,7 +32,7 @@ export default function About() {
             {[
               { t: "Improving players", d: "You practise regularly and want each session to target a real weakness, not just bank volume." },
               { t: "Coaches", d: "A second set of eyes that quantifies what you already sense, and turns it into prescribed drills." },
-              { t: "The curious", d: "You like that a forehand is also a nonlinear dynamical system — and want to see that made tangible." },
+              { t: "The curious", d: "You like that a forehand is also a nonlinear dynamical system, and want to see that made tangible." },
             ].map((c) => (
               <div key={c.t} className="card">
                 <h3 style={{ fontSize: 18, fontWeight: 750, marginBottom: 8 }}>{c.t}</h3>
@@ -46,13 +46,13 @@ export default function About() {
       <section className="section">
         <div className="container">
           <h2 className="section-title">How the pipeline fits together</h2>
-          <p className="section-lead">Four stages, one clean data flow — each stage is independent and swappable.</p>
+          <p className="section-lead">Four stages, one clean flow. Each stage stands on its own.</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {[
-              { n: 1, t: "Clip → understanding", d: "A V-JEPA video encoder turns your clip into a representation a small head maps to stroke type, phase segmentation, and flaw scores." },
-              { n: 2, t: "Understanding → form", d: "Pose estimation extracts joint angles and aligns them to a reference stroke, scoring each joint's deviation." },
-              { n: 3, t: "Flaws → practice", d: "A rule-based generator turns your ranked flaws into a prioritised, time-boxed session from a tagged drill catalogue." },
-              { n: 4, t: "Practice → prediction", d: "The Ball Lab integrates real flight physics and chaos analysis so you can reason about spin, angle, and margin." },
+              { n: 1, t: "Clip to angles", d: "A pose model finds your joints in each frame, in the browser, and picks out the contact moment." },
+              { n: 2, t: "Angles to feedback", d: "We compare your contact angles to sensible targets and score each joint, so you see what's off." },
+              { n: 3, t: "Flaws to practice", d: "Your ranked flaws become a prioritised, time-boxed session pulled from a tagged drill catalogue." },
+              { n: 4, t: "Practice to prediction", d: "The Ball Lab runs real flight physics and chaos analysis so you can dial in spin, angle, and margin." },
             ].map((s) => (
               <div key={s.n} className="card" style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
                 <span className="step-num" style={{ marginBottom: 0, flexShrink: 0 }}>{s.n}</span>
@@ -69,7 +69,7 @@ export default function About() {
       <section className="section cta-band">
         <div className="container">
           <h2 style={{ fontSize: 34 }}>See it on your own stroke.</h2>
-          <p>It runs entirely on your machine — no account, no upload to the cloud.</p>
+          <p>It runs entirely on your machine. No account, nothing uploaded to the cloud.</p>
           <Link href="/analyze" className="btn btn-lg">Open the app</Link>
         </div>
       </section>

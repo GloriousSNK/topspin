@@ -63,7 +63,7 @@ export default function Insights() {
             <span style={{ fontSize: 44 }}>🎾</span>
             <div className="stat">
               <span className="stat-value" style={{ fontSize: 44, color: "var(--court)" }}>{stats.people_helped}</span>
-              <span className="stat-label">People helped · strokes sent for AI analysis</span>
+              <span className="stat-label">Players helped · workouts built, strokes analysed &amp; shots simulated</span>
             </div>
           </div>
 

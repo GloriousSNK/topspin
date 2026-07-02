@@ -62,9 +62,8 @@ export default function BallLab() {
     <div>
       <div className="h1">Ball Lab</div>
       <p className="lead">
-        A struck ball is a nonlinear system — drag and the Magnus force from spin couple together,
-        so tiny differences at contact grow on the way to the bounce. Adjust the shot, then read off
-        the deterministic flight <em>and</em> how chaotic (sensitive) it is.
+        A struck ball is a nonlinear system, so tiny differences at contact grow on the way to the
+        bounce. Adjust the shot, then read off the flight and how sensitive it is.
       </p>
 
       {err && (
