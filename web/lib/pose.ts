@@ -63,6 +63,10 @@ async function getLandmarker(): Promise<PoseLandmarkerT> {
       baseOptions: { modelAssetPath: MODEL_URL, delegate },
       runningMode: "VIDEO",
       numPoses: 1,
+      // Low thresholds so partial / dim / off-angle clips still register.
+      minPoseDetectionConfidence: 0.2,
+      minPosePresenceConfidence: 0.2,
+      minTrackingConfidence: 0.2,
     });
   try {
     _landmarker = await make("GPU");
@@ -90,17 +94,31 @@ function loadVideo(file: File): Promise<HTMLVideoElement> {
     v.muted = true;
     (v as HTMLVideoElement & { playsInline: boolean }).playsInline = true;
     v.src = URL.createObjectURL(file);
-    v.onloadeddata = () => resolve(v);
-    v.onerror = () => reject(new Error("Couldn't read that video file."));
+    const ready = () => resolve(v);
+    v.onloadeddata = ready;
+    v.oncanplay = ready;              // some formats fire this first
+    v.onerror = () => reject(new Error("Couldn't read that video file. Try mp4 or mov."));
+    setTimeout(() => (v.readyState >= 2 ? resolve(v) : reject(new Error("Video took too long to load."))), 15000);
   });
 }
 
+// Seek and wait for the frame, with a timeout so a stubborn decode can't hang.
 function seek(v: HTMLVideoElement, t: number): Promise<void> {
   return new Promise((resolve) => {
-    const done = () => { v.removeEventListener("seeked", done); resolve(); };
-    v.addEventListener("seeked", done);
-    v.currentTime = t;
+    let done = false;
+    const finish = () => { if (done) return; done = true; v.removeEventListener("seeked", finish); resolve(); };
+    v.addEventListener("seeked", finish);
+    try { v.currentTime = Math.max(0, t); } catch { finish(); }
+    setTimeout(finish, 1200);
   });
+}
+
+// Some (esp. webm) clips report Infinity duration until you seek to the end.
+async function resolveDuration(v: HTMLVideoElement): Promise<number> {
+  if (Number.isFinite(v.duration) && v.duration > 0) return v.duration;
+  await seek(v, 1e6);
+  await seek(v, 0);
+  return Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 3;
 }
 
 const REFERENCE: Record<string, number> = {
@@ -110,26 +128,39 @@ const REFERENCE: Record<string, number> = {
 };
 
 export async function analyzeStroke(file: File, stroke: string): Promise<PoseAnalysis> {
-  const landmarker = await getLandmarker();
+  let landmarker: PoseLandmarkerT;
+  try {
+    landmarker = await getLandmarker();
+  } catch {
+    throw new Error("Couldn't load the analysis model. Check your connection and try again.");
+  }
+
   const video = await loadVideo(file);
-  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 2;
+  const duration = await resolveDuration(video);
 
   const N = 24;
   const frames: { t: number; pts: Pt[] }[] = [];
+  let tsCounter = 0;
   try {
     for (let i = 0; i < N; i++) {
       const t = (i / (N - 1)) * duration * 0.98;
       await seek(video, t);
-      const res = landmarker.detectForVideo(video, Math.round(t * 1000) + i);
-      const lm = res.landmarks?.[0];
-      if (lm && lm.length) frames.push({ t, pts: lm as Pt[] });
+      if (!video.videoWidth || !video.videoHeight) continue; // frame not ready
+      try {
+        tsCounter += 40;
+        const res = landmarker.detectForVideo(video, tsCounter);
+        const lm = res.landmarks?.[0];
+        if (lm && lm.length >= 25) frames.push({ t, pts: lm as Pt[] });
+      } catch {
+        /* skip this frame, keep going */
+      }
     }
   } finally {
     URL.revokeObjectURL(video.src);
   }
 
-  if (frames.length < 6) {
-    throw new Error("Couldn't track a body clearly. Use a clip where you're fully in frame and well lit.");
+  if (frames.length < 3) {
+    throw new Error("Couldn't find a person in that clip. Try one where your body is visible through the swing.");
   }
 
   // Dominant side = whichever wrist travels more across the clip.

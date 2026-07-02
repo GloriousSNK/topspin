@@ -15,8 +15,8 @@ const POSE_ORIGINS = "https://cdn.jsdelivr.net https://storage.googleapis.com";
 // script-src: 'unsafe-eval' is dev/HMR-only and dropped in production;
 // 'wasm-unsafe-eval' is required for the MediaPipe pose WASM runtime.
 const scriptSrc = isDev
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'"
-  : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'";
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net"
+  : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net";
 
 const csp = [
   "default-src 'self'",
