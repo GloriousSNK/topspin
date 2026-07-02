@@ -241,49 +241,69 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
   }
   const cf = frames[contact].pts;
   const vis = (p: Pt) => (p.visibility ?? 1) >= 0.4;
+  const P = frames.map((f) => f.pts);
 
-  // Only judge what we can actually see. Each check is lenient and only fires a
-  // flaw when the signal is clearly and confidently in the bad range.
-  const jointFeedback: JointFeedback[] = [];
-  const flaws: StrokeFlaw[] = [];
-  const good = (j: string, r: string, n: string) => jointFeedback.push({ joint: j, reading: r, status: "good", note: n });
+  // Body scale (torso length) so all distances are independent of how big the
+  // person appears in frame.
+  const torsoLen = Math.max(
+    0.04,
+    median(P.map((p) => (dist(p[L.lShoulder], p[L.lHip]) + dist(p[L.rShoulder], p[L.rHip])) / 2)),
+  );
 
-  // Contact-arm extension.
-  if (vis(cf[Sh]) && vis(cf[El]) && vis(cf[Wr])) {
-    const elbow = Math.round(angle(cf[Sh], cf[El], cf[Wr]));
-    const st = elbow >= 110 ? "good" : elbow >= 90 ? "minor" : "off";
-    jointFeedback.push({ joint: "Contact arm", reading: `${elbow}°`, status: st,
-      note: st === "good" ? "Extended well through contact." : "Reach and extend a touch more at contact." });
-    if (elbow < 90) flaws.push({ id: "low_elbow", label: "Arm cramped at contact", coaching_cue: "Let the arm extend through the ball.", severity: 0.5 });
+  // Measurements, normalised by torso length.
+  let back = 0, follow = 0;
+  for (let i = 1; i < P.length; i++) {
+    const d = dist(P[i][Wr], P[i - 1][Wr]) / torsoLen;
+    if (i <= contact) back += d; else follow += d;
+  }
+  const amp = back + follow;                                        // total swing size
+  const shoulderY = (cf[L.lShoulder].y + cf[L.rShoulder].y) / 2;
+  const contactHigh = (shoulderY - cf[Wr].y) / torsoLen;           // +ve = wrist above shoulders
+  const rise = (P[0][Wr].y - P[P.length - 1][Wr].y) / torsoLen;    // +ve = low-to-high path
+  const elbow = vis(cf[Sh]) && vis(cf[El]) && vis(cf[Wr]) ? angle(cf[Sh], cf[El], cf[Wr]) : null;
+  const kfr = frames.filter((f) => vis(f.pts[Hp]) && vis(f.pts[Kn]) && vis(f.pts[An]));
+  const kneeFlex = kfr.length >= 3 ? 180 - Math.min(...kfr.map((f) => angle(f.pts[Hp], f.pts[Kn], f.pts[An]))) : null;
+
+  // Each check grades one measurement against what THIS stroke should look like.
+  type Chk = { label: string; reading: string; q: number; ok: string; bad: string; flaw?: { id: string; label: string; cue: string } };
+  const checks: Chk[] = [];
+  const band = (v: number, lo: number, hi: number, tol: number) =>
+    v >= lo && v <= hi ? 1 : Math.max(0, 1 - (v < lo ? lo - v : v - hi) / tol);
+  const on = (cond: boolean, c: Chk) => { if (cond) checks.push(c); };
+  const kind = stroke === "volley" ? "volley" : stroke === "serve" ? "serve" : "ground";
+
+  if (kind === "volley") {
+    on(true, { label: "Compactness", reading: amp.toFixed(1), q: band(amp, 0.2, 2.0, 2.2), ok: "Short and compact.", bad: "Too much swing — punch it, racquet in front.", flaw: { id: "early_contact", label: "Swing too long for a volley", cue: "Punch, don't swing. Keep it short and out front." } });
+    on(true, { label: "Contact height", reading: contactHigh.toFixed(2), q: band(contactHigh, -0.2, 1.0, 0.8), ok: "Met out in front.", bad: "Take it in front, around shoulder height.", flaw: { id: "early_contact", label: "Contact position off", cue: "Meet the ball in front of you." } });
+    on(elbow != null, { label: "Firm arm", reading: `${Math.round(elbow ?? 0)}°`, q: band(elbow ?? 130, 95, 168, 45), ok: "Firm through the block.", bad: "Arm too loose — stay firm.", flaw: { id: "wrist_instability", label: "Loose arm at contact", cue: "Firm the wrist and block through the ball." } });
+    on(kneeFlex != null, { label: "Stay low", reading: `${Math.round(Math.max(0, kneeFlex ?? 0))}° flex`, q: band(kneeFlex ?? 20, 6, 45, 18), ok: "Low and ready.", bad: "Bend more, stay low.", flaw: { id: "narrow_base", label: "Standing too tall", cue: "Split-step and stay low on the volley." } });
+  } else if (kind === "serve") {
+    on(true, { label: "Reach at contact", reading: contactHigh.toFixed(2), q: band(contactHigh, 0.5, 2.5, 0.8), ok: "Contacting up high.", bad: "Reach up — hit at full stretch.", flaw: { id: "low_elbow", label: "Contact too low", cue: "Hit the ball at full extension overhead." } });
+    on(elbow != null, { label: "Extension", reading: `${Math.round(elbow ?? 0)}°`, q: band(elbow ?? 150, 150, 182, 45), ok: "Fully extended.", bad: "Straighten the arm fully.", flaw: { id: "low_elbow", label: "Arm not extended", cue: "Reach up and straighten the arm at contact." } });
+    on(kneeFlex != null, { label: "Leg drive", reading: `${Math.round(Math.max(0, kneeFlex ?? 0))}° flex`, q: band(kneeFlex ?? 25, 15, 75, 22), ok: "Good leg load.", bad: "Load and drive with the legs.", flaw: { id: "narrow_base", label: "Little leg drive", cue: "Bend the knees and drive up into the ball." } });
+    on(true, { label: "Motion size", reading: amp.toFixed(1), q: band(amp, 2.0, 12, 3), ok: "Full motion.", bad: "Let the full service motion unfold.", flaw: { id: "late_preparation", label: "Rushed motion", cue: "Take your time through the whole motion." } });
+  } else {
+    on(true, { label: "Swing length", reading: amp.toFixed(1), q: band(amp, 2.2, 10, 3), ok: "Full swing.", bad: "Take a bigger, earlier backswing.", flaw: { id: "late_preparation", label: "Swing too short", cue: "Prepare earlier and take a fuller swing." } });
+    on(true, { label: "Follow-through", reading: follow.toFixed(1), q: band(follow, 1.2, 8, 1.6), ok: "Finishes long.", bad: "Carry the finish higher and longer.", flaw: { id: "short_followthrough", label: "Short follow-through", cue: "Finish high, over the shoulder." } });
+    on(true, { label: "Low to high", reading: rise.toFixed(2), q: band(rise, 0.1, 3, 1.1), ok: "Good upward path.", bad: "Swing low to high, brush up the ball.", flaw: { id: "short_followthrough", label: "Flat swing path", cue: "Start low and finish high for topspin." } });
+    on(kneeFlex != null, { label: "Knee load", reading: `${Math.round(Math.max(0, kneeFlex ?? 0))}° flex`, q: band(kneeFlex ?? 18, 8, 55, 18), ok: "Loaded well.", bad: "Bend the knees to load.", flaw: { id: "narrow_base", label: "Legs too straight", cue: "Bend the knees and load into the shot." } });
+    on(elbow != null, { label: "Contact arm", reading: `${Math.round(elbow ?? 0)}°`, q: band(elbow ?? 140, 115, 178, 45), ok: "Extended at contact.", bad: "Extend more through contact.", flaw: { id: "low_elbow", label: "Arm cramped at contact", cue: "Extend the arm through the ball." } });
   }
 
-  // Knee bend — most-bent moment, only where legs are visible.
-  const kf = frames.filter((f) => vis(f.pts[Hp]) && vis(f.pts[Kn]) && vis(f.pts[An]));
-  if (kf.length >= 3) {
-    const flex = Math.round(180 - Math.min(...kf.map((f) => angle(f.pts[Hp], f.pts[Kn], f.pts[An]))));
-    const st = flex >= 12 ? "good" : flex >= 5 ? "minor" : "off";
-    jointFeedback.push({ joint: "Knee bend", reading: `${Math.max(0, flex)}° flex`, status: st,
-      note: st === "good" ? "Nicely loaded." : "Bend the knees a bit more to load." });
-    if (flex < 5) flaws.push({ id: "narrow_base", label: "Legs stay straight", coaching_cue: "Bend the knees and load into the shot.", severity: 0.45 });
-  }
+  const jointFeedback: JointFeedback[] = checks.map((c) => ({
+    joint: c.label,
+    reading: c.reading,
+    status: c.q >= 0.75 ? "good" : c.q >= 0.5 ? "minor" : "off",
+    note: c.q >= 0.75 ? c.ok : c.bad,
+  }));
+  const flaws: StrokeFlaw[] = checks
+    .filter((c) => c.q < 0.5 && c.flaw)
+    .map((c) => ({ id: c.flaw!.id, label: c.flaw!.label, coaching_cue: c.flaw!.cue, severity: round2(0.35 + (1 - c.q) * 0.55) }));
 
-  // Follow-through — wrist travel after contact vs before.
-  if (contact >= 1 && contact <= frames.length - 2) {
-    const pre = frames.slice(1, contact + 1).reduce((s, f, i) => s + dist(f.pts[Wr], frames[i].pts[Wr]), 0);
-    const post = frames.slice(contact + 1).reduce((s, f, i) => s + dist(f.pts[Wr], frames[contact + i].pts[Wr]), 0);
-    if (pre > 0.04) {
-      const pct = Math.round((post / pre) * 100);
-      const st = pct >= 45 ? "good" : pct >= 25 ? "minor" : "off";
-      jointFeedback.push({ joint: "Follow-through", reading: `${pct}%`, status: st,
-        note: st === "good" ? "Full finish past contact." : "Carry the finish higher and longer." });
-      if (pct < 25) flaws.push({ id: "short_followthrough", label: "Short follow-through", coaching_cue: "Finish the swing high, over the shoulder.", severity: 0.5 });
-    }
-  }
-
-  if (jointFeedback.length === 0) good("Swing", "tracked", "Motion tracked cleanly.");
-
-  // Generous score: start high, dock only for confident flaws, never below 55.
-  const formScore = Math.max(55, 100 - flaws.reduce((s, f) => s + Math.round(f.severity * 24), 0));
+  // Score = how well the swing matches this stroke, averaged over what we saw.
+  const formScore = checks.length
+    ? Math.round((checks.reduce((s, c) => s + c.q, 0) / checks.length) * 100)
+    : 70;
 
   // Contact-frame skeleton (normalized) for drawing.
   const nm = (i: number): [number, number] => [cf[i].x, cf[i].y];
@@ -309,6 +329,13 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
 }
 
 const round2 = (x: number) => Math.round(x * 100) / 100;
+
+function median(a: number[]): number {
+  if (!a.length) return 0;
+  const s = [...a].sort((x, y) => x - y);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
 
 // 3-frame moving average of each landmark to damp per-frame jitter, which
 // otherwise throws off the joint angles.
