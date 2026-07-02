@@ -58,51 +58,23 @@ export default function Insights() {
 
       {stats && (
         <>
-          {/* headline */}
+          {/* headline: analyses + workouts + simulations combined */}
           <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
             <span style={{ fontSize: 44 }}>🎾</span>
             <div className="stat">
               <span className="stat-value" style={{ fontSize: 44, color: "var(--court)" }}>{fmt(stats.people_helped)}</span>
-              <span className="stat-label">Players helped · workouts built, strokes analysed &amp; shots simulated</span>
+              <span className="stat-label">AI analyses, workouts &amp; simulations run</span>
             </div>
           </div>
 
-          <Group title="Audience">
-            <Metric value={stats.unique_visitors} label="Lifetime visitors" />
-            <Metric value={stats.returning_visitors} label="Returning visitors" />
-            <Metric value={stats.active_today} label="Visitors · 24h" />
-            <Metric value={stats.active_7d} label="Visitors · 7 days" />
-            <Metric value={stats.active_30d} label="Visitors · 30 days" />
-            <Metric value={stats.total_views} label="Page views" />
-            <Metric value={stats.views_today} label="Views · 24h" />
-            <Metric value={stats.total_events} label="Events logged" />
-          </Group>
-
-          <Group title="Tools used">
-            <Metric value={stats.analyses_run} label="Strokes analysed" accent />
-            <Metric value={stats.simulations_run} label="Shots simulated" accent />
-            <Metric value={stats.workouts_built} label="Workouts built" accent />
-            <Metric value={stats.drills_prescribed} label="Drills prescribed" />
-          </Group>
-
-          <Group title="Compute crunched">
-            <Metric value={stats.landing_points_simulated} label="Landing points simulated" />
-            <Metric value={stats.physics_steps} label="RK4 physics steps" />
+          <div className="grid grid-4">
+            <Metric value={stats.total_views} label="Total page views" />
+            <Metric value={stats.physics_steps} label="RK4 physics steps" accent />
             <Metric value={stats.trajectory_points} label="Trajectory points plotted" />
-            <Metric value={stats.frames_analysed} label="Frames analysed" />
             <Metric value={stats.keypoints_tracked} label="Body keypoints tracked" />
-          </Group>
+          </div>
         </>
       )}
-    </div>
-  );
-}
-
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 22 }}>
-      <div className="card-title" style={{ marginBottom: 12 }}>{title}</div>
-      <div className="grid grid-4">{children}</div>
     </div>
   );
 }
