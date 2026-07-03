@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { Workout, CatalogueDrill } from "@/lib/types";
 
-const GOALS = ["all_round", "consistency", "power", "footwork", "serve"];
+const GOALS = ["all_round", "consistency", "power", "footwork", "serve", "volley"];
 const LEVELS = ["beginner", "intermediate", "advanced"];
 
 export default function Workouts() {

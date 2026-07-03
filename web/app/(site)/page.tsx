@@ -175,7 +175,7 @@ export default function Landing() {
           <div className="grid grid-2">
             <div className="card lift"><div className="stat"><span className="stat-value" style={{ color: "var(--court)" }}>RK4</span><span className="stat-label">Real integrator</span></div></div>
             <div className="card lift"><div className="stat"><span className="stat-value">~0.7s</span><span className="stat-label">Full prediction</span></div></div>
-            <div className="card lift"><div className="stat"><span className="stat-value">8</span><span className="stat-label">Drills & growing</span></div></div>
+            <div className="card lift"><div className="stat"><span className="stat-value">34</span><span className="stat-label">Drills & growing</span></div></div>
             <div className="card lift"><div className="stat"><span className="stat-value">100%</span><span className="stat-label">Runs locally</span></div></div>
           </div>
         </div>
