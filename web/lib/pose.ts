@@ -45,6 +45,7 @@ export interface PoseAnalysis {
   skeleton: Record<string, [number, number]>;
   framesAnalyzed: number;
   seconds: number;
+  videoFrames: number;
 }
 
 type Pt = { x: number; y: number; z: number; visibility?: number };
@@ -209,7 +210,8 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
   try { await seek(video, 0); await nextPainted(video); detectCanvas(); } catch { /* best effort */ }
 
   let frames = (await playCapture()) ?? [];
-  if (frames.length < 6) {
+  const played = frames.length >= 6;   // play-capture timestamps are real, seek ones aren't
+  if (!played) {
     try { video.pause(); } catch {}
     const seeked = await seekCapture();
     if (seeked.length > frames.length) frames = seeked;
@@ -219,6 +221,10 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
   if (frames.length < 3) {
     throw new Error("Couldn't find a person in that clip. Make sure your body is visible through the swing.");
   }
+
+  // Real frame rate from the gaps between played frames -> true total frame count.
+  const fps = played ? estimateFps(frames.map((f) => f.t)) : 30;
+  const videoFrames = Math.max(frames.length, Math.round(fps * duration));
 
   frames = smoothFrames(frames); // steady the keypoints before measuring angles
 
@@ -330,6 +336,7 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
     skeleton,
     framesAnalyzed: frames.length,
     seconds: Math.round(duration),
+    videoFrames,
   };
 }
 
@@ -340,6 +347,19 @@ function median(a: number[]): number {
   const s = [...a].sort((x, y) => x - y);
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+// Frame rate from the gaps between real frame timestamps (median gap = 1/fps).
+function estimateFps(times: number[]): number {
+  const t = [...times].sort((a, b) => a - b);
+  const gaps: number[] = [];
+  for (let i = 1; i < t.length; i++) {
+    const d = t[i] - t[i - 1];
+    if (d > 0.002 && d < 0.5) gaps.push(d);
+  }
+  const g = median(gaps);
+  if (!g) return 30;
+  return Math.min(120, Math.max(10, Math.round(1 / g)));
 }
 
 // 3-frame moving average of each landmark to damp per-frame jitter, which

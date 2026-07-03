@@ -68,6 +68,7 @@ def _ensure_schema() -> None:
                         ts       DOUBLE PRECISION NOT NULL,
                         kind     TEXT NOT NULL DEFAULT 'view',
                         n        BIGINT NOT NULL DEFAULT 1,
+                        secs     BIGINT NOT NULL DEFAULT 0,
                         path     TEXT NOT NULL,
                         session  TEXT NOT NULL,
                         referrer TEXT
@@ -81,6 +82,7 @@ def _ensure_schema() -> None:
                         ts       REAL NOT NULL,
                         kind     TEXT NOT NULL DEFAULT 'view',
                         n        INTEGER NOT NULL DEFAULT 1,
+                        secs     INTEGER NOT NULL DEFAULT 0,
                         path     TEXT NOT NULL,
                         session  TEXT NOT NULL,
                         referrer TEXT
@@ -95,6 +97,7 @@ def _ensure_schema() -> None:
         for col, ddl_pg, ddl_sqlite in (
             ("kind", "TEXT NOT NULL DEFAULT 'view'", "TEXT NOT NULL DEFAULT 'view'"),
             ("n", "BIGINT NOT NULL DEFAULT 1", "INTEGER NOT NULL DEFAULT 1"),
+            ("secs", "BIGINT NOT NULL DEFAULT 0", "INTEGER NOT NULL DEFAULT 0"),
         ):
             try:
                 mconn = _raw_conn()
@@ -153,21 +156,22 @@ def _ref_origin(url: str | None) -> str:
 _KINDS = {"view", "help", "sim", "workout"}
 
 
-def record(path: str, session: str, referrer: str | None, kind: str = "view", n: int = 1) -> None:
-    """Insert one event. `kind` is 'view' or an action; `n` is its work magnitude."""
+def record(path: str, session: str, referrer: str | None, kind: str = "view", n: int = 1, secs: int = 0) -> None:
+    """Insert one event. `n` is the work magnitude, `secs` any duration in seconds."""
     p = _clean_path(path)
     s = _clip(session, MAX_SESSION, "anon")
     r = _ref_origin(referrer)
     k = kind if kind in _KINDS else "view"
     nn = max(1, min(int(n or 1), 10_000_000))
+    ss = max(0, min(int(secs or 0), 86_400))
     with _write_lock:
         conn = _conn()
         try:
             cur = conn.cursor()
             cur.execute(
-                f"INSERT INTO events (ts, kind, n, path, session, referrer) "
-                f"VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH})",
-                (time.time(), k, nn, p, s, r),
+                f"INSERT INTO events (ts, kind, n, secs, path, session, referrer) "
+                f"VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH})",
+                (time.time(), k, nn, ss, p, s, r),
             )
             # Prune occasionally — the COUNT(*) scan is O(n); don't run it every write.
             if random.random() < 0.02:
@@ -184,15 +188,12 @@ def record(path: str, session: str, referrer: str | None, kind: str = "view", n:
             conn.close()
 
 
-def record_action(kind: str, n: int = 1, session: str | None = None) -> None:
+def record_action(kind: str, n: int = 1, secs: int = 0, session: str | None = None) -> None:
     """Log one useful action (analysis/simulation/workout). Never raises."""
     try:
-        record(f"/{kind}", session or "anon", None, kind=kind, n=n)
+        record(f"/{kind}", session or "anon", None, kind=kind, n=n, secs=secs)
     except Exception:
         pass
-
-
-FRAMES_PER_VIDEO = 24         # frames sampled per clip (see web/lib/pose.ts)
 
 
 def stats() -> dict:
@@ -207,20 +208,21 @@ def stats() -> dict:
                 SUM(CASE WHEN kind = 'workout' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN kind = 'sim' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN kind = 'help' THEN n ELSE 0 END),
+                SUM(CASE WHEN kind = 'help' THEN secs ELSE 0 END),
                 COUNT(DISTINCT session),
                 COUNT(DISTINCT CASE WHEN referrer <> '' THEN referrer END)
             FROM events"""
         )
-        r = [int(x or 0) for x in (cur.fetchone() or [0] * 6)]
+        r = [int(x or 0) for x in (cur.fetchone() or [0] * 7)]
     finally:
         conn.close()
 
-    videos, sessions, sims, footage_seconds, athletes, orgs = r
+    videos, sessions, sims, frames, footage_seconds, athletes, orgs = r
     return {
         "videos_analyzed": videos,
         "practice_sessions": sessions,
         "simulations": sims,
-        "frames_processed": videos * FRAMES_PER_VIDEO,
+        "frames_processed": frames,          # real total frames (fps x duration)
         "footage_seconds": footage_seconds,
         "athletes_served": athletes,
         "orgs_reached": orgs,

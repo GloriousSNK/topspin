@@ -27,7 +27,7 @@ export default function Analyze() {
       const { analyzeStroke } = await import("@/lib/pose");
       const res = await analyzeStroke(file, stroke);
       setResult(res);
-      api.recordAnalysis(res.seconds); // count it (no clip leaves the device)
+      api.recordAnalysis(res.seconds, res.videoFrames); // count it (no clip leaves the device)
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't analyse that clip.");
     } finally {

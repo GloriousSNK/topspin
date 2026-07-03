@@ -32,12 +32,12 @@ def track(ev: TrackIn, request: Request):
 
 
 @router.post("/analysis")
-def analysis_done(request: Request, seconds: int = 0):
+def analysis_done(request: Request, seconds: int = 0, frames: int = 0):
     """Count one on-device stroke analysis (no clip is uploaded)."""
     ip = request.client.host if request.client else "?"
     if not _track_limiter.allow(ip):
         return {"ok": False, "throttled": True}
-    analytics.record_action("help", n=max(1, min(seconds, 3600)))
+    analytics.record_action("help", n=max(1, min(frames, 200000)), secs=max(0, min(seconds, 3600)))
     return {"ok": True}
 
 

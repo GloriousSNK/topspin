@@ -83,9 +83,11 @@ export const api = {
   stats: () => get<TrafficStats>("/analytics/stats"),
 
   // Count one on-device analysis. Fire-and-forget; never throws.
-  recordAnalysis: (seconds = 0) => {
+  recordAnalysis: (seconds = 0, frames = 0) => {
     try {
-      fetch(`${BASE}/analytics/analysis?seconds=${Math.max(0, Math.min(Math.round(seconds), 3600))}`, {
+      const s = Math.max(0, Math.min(Math.round(seconds), 3600));
+      const f = Math.max(0, Math.min(Math.round(frames), 200000));
+      fetch(`${BASE}/analytics/analysis?seconds=${s}&frames=${f}`, {
         method: "POST",
         keepalive: true,
       }).catch(() => {});
