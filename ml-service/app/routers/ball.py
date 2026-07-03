@@ -83,7 +83,9 @@ def predict_ball(req: PredictBallRequest, background: BackgroundTasks):
             "samples": ens.samples,
         }
 
-    # Count the simulation + how many landings it actually simulated.
-    landings = req.ensemble_samples if req.run_chaos else 1
-    background.add_task(analytics.record_action, "sim", landings)
+    # Count every trajectory actually integrated for this prediction: the main
+    # flight, the Lyapunov sweep (1 reference + 4 perturbed), and each shot in
+    # the Monte-Carlo landing cloud.
+    total_sims = (1 + 5 + req.ensemble_samples) if req.run_chaos else 1
+    background.add_task(analytics.record_action, "sim", total_sims)
     return _sanitize(result)

@@ -206,7 +206,7 @@ def stats() -> dict:
             """SELECT
                 SUM(CASE WHEN kind = 'help' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN kind = 'workout' THEN 1 ELSE 0 END),
-                SUM(CASE WHEN kind = 'sim' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN kind = 'sim' THEN n ELSE 0 END),
                 SUM(CASE WHEN kind = 'help' THEN n ELSE 0 END),
                 SUM(CASE WHEN kind = 'help' THEN secs ELSE 0 END),
                 COUNT(DISTINCT session),
