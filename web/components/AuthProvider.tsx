@@ -36,7 +36,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     if (!supabase) return "Accounts are not configured.";
-    const { error } = await supabase.auth.signUp({ email, password });
+    // Send the confirmation link back to THIS origin (prod or localhost),
+    // not whatever the Supabase Site URL happens to be.
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/account` },
+    });
     return error ? error.message : null;
   };
   const signIn = async (email: string, password: string) => {
