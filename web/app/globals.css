@@ -193,8 +193,10 @@ table.data td { padding: 11px 10px; border-bottom: 1px solid var(--paper-2); }
 .select {
   background: var(--card); color: var(--ink); border: 2px solid var(--ink);
   border-radius: 8px; padding: 8px 12px; font-size: 14px; font-weight: 600;
-  box-shadow: var(--shadow-sm); text-transform: capitalize;
+  box-shadow: var(--shadow-sm);
 }
+/* Only real dropdowns get title-case display; text inputs stay verbatim. */
+select.select { text-transform: capitalize; }
 
 .dropzone {
   border: 2px dashed var(--ink); border-radius: var(--radius); padding: 44px;

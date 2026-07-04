@@ -57,7 +57,8 @@ export default function Account() {
         <div>
           <label className="label">Email</label>
           <input className="select" style={{ width: "100%" }} type="email" required value={email}
-            onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+            onChange={(e) => setEmail(e.target.value)} autoComplete="email"
+            autoCapitalize="none" autoCorrect="off" spellCheck={false} />
         </div>
         <div>
           <label className="label">Password</label>
