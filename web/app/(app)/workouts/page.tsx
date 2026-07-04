@@ -33,10 +33,11 @@ export default function Workouts() {
 
   return (
     <div>
+      <span className="eyebrow">Practice</span>
       <div className="h1">Drills & Workouts</div>
       <p className="lead">
-        Build a time-boxed session from a goal, or browse the full catalogue. Each drill is tagged
-        with the flaws it targets, so sessions from a clip analysis pull straight from here.
+        Pick a goal and hit Generate for a ready-made session — or scroll down to browse all
+        {" "}{catalogue.length || 34} drills. Sessions from a clip analysis pull straight from here.
       </p>
 
       <div className="card" style={{ marginBottom: 18 }}>
@@ -68,12 +69,12 @@ export default function Workouts() {
           <div className="card-title">{workout.title} · {workout.total_minutes} min · {workout.level}</div>
           <div className="grid grid-2">
             {workout.drills.map((d) => (
-              <div key={d.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
+              <div key={d.id} className="subcard">
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <strong>{d.name}</strong>
                   <span className="tag">{d.est_minutes}m</span>
                 </div>
-                <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 8 }}>{d.focus}</div>
+                <div style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 8 }}>{d.focus}</div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <span className="pill">{d.sets} × {d.reps}</span>
                   <span className="pill">{d.intensity}</span>
@@ -88,25 +89,27 @@ export default function Workouts() {
 
       <div className="card">
         <div className="card-title">Drill catalogue · {catalogue.length} drills</div>
-        <table className="data">
-          <thead>
-            <tr><th>Drill</th><th>Category</th><th>Intensity</th><th>Default</th><th>Equipment</th></tr>
-          </thead>
-          <tbody>
-            {catalogue.map((d) => (
-              <tr key={d.id}>
-                <td>
-                  <div style={{ fontWeight: 600 }}>{d.name}</div>
-                  <div style={{ color: "var(--muted)", fontSize: 12 }}>{d.focus}</div>
-                </td>
-                <td><span className="tag">{d.category}</span></td>
-                <td>{d.intensity}</td>
-                <td className="mono">{d.default_sets}×{d.default_reps}</td>
-                <td style={{ color: "var(--muted)", fontSize: 13 }}>{d.equipment}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr><th>Drill</th><th>Category</th><th>Intensity</th><th>Default</th><th>Equipment</th></tr>
+            </thead>
+            <tbody>
+              {catalogue.map((d) => (
+                <tr key={d.id}>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{d.name}</div>
+                    <div style={{ color: "var(--ink-soft)", fontSize: 12 }}>{d.focus}</div>
+                  </td>
+                  <td><span className="tag">{d.category}</span></td>
+                  <td>{d.intensity}</td>
+                  <td className="mono">{d.default_sets}×{d.default_reps}</td>
+                  <td style={{ color: "var(--ink-soft)", fontSize: 13 }}>{d.equipment}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

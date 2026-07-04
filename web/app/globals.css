@@ -11,7 +11,7 @@
   --paper-2:  #e7e0cc;   /* slightly deeper inset */
   --card:     #fbf8ef;   /* near-white card face */
   --ink:      #17160f;   /* warm near-black */
-  --ink-soft: #5f5a49;   /* muted ink for secondary text */
+  --ink-soft: #55503f;   /* muted ink for secondary text (AA contrast on cream) */
 
   --accent:     #d8f24a; /* optic tennis-ball yellow-green */
   --accent-dim: #c2dd2c;
@@ -142,7 +142,20 @@ a:hover .card { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--in
 @media (max-width: 980px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } .grid-4 { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { .grid-4 { grid-template-columns: 1fr; } }
 
-.h1 { font-family: var(--font-display), Georgia, serif; font-size: clamp(28px, 4vw, 36px); font-weight: 600; letter-spacing: -0.015em; margin-bottom: 10px; line-height: 1.08; }
+.h1 { font-family: var(--font-display), Georgia, serif; font-size: clamp(30px, 4.4vw, 40px); font-weight: 600; letter-spacing: -0.015em; margin-bottom: 10px; line-height: 1.08; }
+
+/* shared sub-card (inside a .card) — matches the brutalist border language */
+.subcard { border: 2px solid var(--ink); border-radius: 10px; padding: 14px; background: var(--paper); }
+/* secondary account panel tint */
+.acct-perks { background: var(--paper-2); }
+/* let wide data tables scroll instead of squeezing on phones */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* visible keyboard focus everywhere */
+:where(a, button, input, select, [role="button"]):focus-visible { outline: 3px solid var(--court); outline-offset: 2px; }
+@media (max-width: 560px) {
+  table.data { min-width: 420px; }
+  .btn, .select, .nav-account { min-height: 44px; }
+}
 .lead { color: var(--ink-soft); font-size: 15px; margin-bottom: 30px; max-width: 720px; line-height: 1.55; }
 
 /* ---------------- controls ---------------- */

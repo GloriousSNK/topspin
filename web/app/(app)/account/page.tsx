@@ -94,19 +94,19 @@ export default function Account() {
       <div className="grid stack-mobile" style={{ gridTemplateColumns: "1fr 1fr", gap: 18, alignItems: "start" }}>
         <form onSubmit={submit} className="card" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
-            <label className="label">Email</label>
-            <input className="select" style={{ width: "100%" }} type="email" required value={email}
+            <label className="label" htmlFor="email">Email</label>
+            <input id="email" className="select" style={{ width: "100%" }} type="email" required value={email}
               onChange={(e) => setEmail(e.target.value)} autoComplete="email"
               autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="you@example.com" />
           </div>
           <div>
-            <label className="label">Password</label>
-            <input className="select" style={{ width: "100%" }} type="password" required minLength={6} value={pw}
+            <label className="label" htmlFor="password">Password</label>
+            <input id="password" className="select" style={{ width: "100%" }} type="password" required minLength={6} value={pw}
               onChange={(e) => setPw(e.target.value)} placeholder="At least 6 characters"
               autoComplete={mode === "in" ? "current-password" : "new-password"} />
           </div>
-          {msg && <div style={{ color: "var(--danger)", fontSize: 13 }}>{msg}</div>}
-          {ok && <div style={{ color: "var(--good)", fontSize: 13 }}>{ok}</div>}
+          {msg && <div role="alert" style={{ color: "var(--danger)", fontSize: 13 }}>⚠ {msg}</div>}
+          {ok && <div role="status" style={{ color: "var(--good)", fontSize: 13 }}>✓ {ok}</div>}
           <button className="btn" disabled={busy} style={{ justifyContent: "center" }}>
             {busy ? "…" : mode === "in" ? "Sign in" : "Create account"}
           </button>

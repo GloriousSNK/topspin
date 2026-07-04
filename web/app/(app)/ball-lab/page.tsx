@@ -51,15 +51,25 @@ export default function BallLab() {
     }
   }, []);
 
+  // Live: recompute shortly after any slider change (and on mount).
   useEffect(() => {
-    run(DEFAULTS);
-  }, [run]);
+    const t = setTimeout(() => run(c), 250);
+    return () => clearTimeout(t);
+  }, [c, run]);
+
+  // If the backend is cold/unreachable, keep retrying quietly.
+  useEffect(() => {
+    if (!err) return;
+    const t = setTimeout(() => run(c), 5000);
+    return () => clearTimeout(t);
+  }, [err, c, run]);
 
   const set = (k: keyof Controls) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setC((prev) => ({ ...prev, [k]: parseFloat(e.target.value) }));
 
   return (
     <div>
+      <span className="eyebrow">Lab</span>
       <div className="h1">Ball Lab</div>
       <p className="lead">
         A struck ball is a nonlinear system, so tiny differences at contact grow on the way to the
@@ -68,12 +78,13 @@ export default function BallLab() {
 
       {err && (
         <div className="card" style={{ borderColor: "var(--danger)", marginBottom: 18 }}>
-          <strong style={{ color: "var(--danger)" }}>Service error.</strong>{" "}
-          <span style={{ color: "var(--muted)" }}>
-            Is the ML service running on {api.base}? Start it with{" "}
-            <code className="mono">uvicorn app.main:app --port 8000</code>.
+          <strong style={{ color: "var(--danger)" }}>The physics engine is waking up.</strong>{" "}
+          <span style={{ color: "var(--ink-soft)" }}>
+            The free server sleeps when idle and can take ~30s to start. This will retry on its own.
           </span>
-          <div className="mono" style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>{err}</div>
+          {process.env.NODE_ENV === "development" && (
+            <div className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8 }}>{api.base} — {err}</div>
+          )}
         </div>
       )}
 
@@ -83,15 +94,14 @@ export default function BallLab() {
           <div className="card-title">Shot parameters</div>
           <Slider label="Racquet speed" val={c.speed} unit="m/s" min={10} max={45} step={0.5} onChange={set("speed")} />
           <Slider label="Launch angle" val={c.elev} unit="°" min={0} max={45} step={0.5} onChange={set("elev")} />
-          <Slider label="Aim (azimuth)" val={c.azim} unit="°" min={-12} max={12} step={0.5} onChange={set("azim")} />
+          <Slider label="Aim (left / right)" val={c.azim} unit="°" min={-12} max={12} step={0.5} onChange={set("azim")} />
           <Slider label="Spin (+top / −back)" val={c.topspin} unit="rpm" min={-3000} max={5000} step={100} onChange={set("topspin")} />
           <Slider label="Contact height" val={c.height} unit="m" min={0.4} max={1.6} step={0.05} onChange={set("height")} />
-          <button className="btn" style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
-            onClick={() => run(c)} disabled={loading}>
-            {loading ? "Simulating…" : "Run simulation"}
-          </button>
-          <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
-            onClick={() => { setC(DEFAULTS); run(DEFAULTS); }}>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", margin: "8px 0" }}>
+            {loading ? "● Updating…" : "Updates live as you drag."}
+          </div>
+          <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }}
+            onClick={() => setC(DEFAULTS)}>
             Reset
           </button>
         </div>

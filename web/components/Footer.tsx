@@ -29,9 +29,9 @@ export default function Footer() {
             <Link href="/privacy">Privacy</Link>
           </div>
           <div className="footer-col">
-            <h5>Project</h5>
-            <a href="http://127.0.0.1:8000/docs" target="_blank" rel="noreferrer">API docs</a>
-            <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>v0.1 · runs locally</span>
+            <h5>More</h5>
+            <Link href="/insights">Insights</Link>
+            <Link href="/account">Account</Link>
           </div>
         </div>
         <div className="footer-base">

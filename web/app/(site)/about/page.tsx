@@ -12,7 +12,7 @@ export default function About() {
       <section className="section" style={{ paddingTop: 64 }}>
         <div className="container" style={{ maxWidth: 820 }}>
           <span className="eyebrow">About</span>
-          <h1 style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.05, marginBottom: 18 }}>
+          <h1 style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: "clamp(34px,5vw,48px)", fontWeight: 600, letterSpacing: "-0.015em", lineHeight: 1.05, marginBottom: 18 }}>
             Deliberate practice, made measurable.
           </h1>
           <p style={{ fontSize: 18, color: "var(--ink-soft)", lineHeight: 1.6 }}>

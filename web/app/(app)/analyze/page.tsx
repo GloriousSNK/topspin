@@ -18,6 +18,7 @@ export default function Analyze() {
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [drag, setDrag] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { user, enabled } = useAuth();
 
@@ -70,10 +71,12 @@ export default function Analyze() {
 
   return (
     <div>
+      <span className="eyebrow">Analysis</span>
       <div className="h1">Clip Analysis</div>
       <p className="lead">
         Upload a clip of one stroke. Pose detection tracks your body and checks your angles at
-        contact, then turns what it finds into drills.
+        contact, then turns what it finds into drills. It all runs on your device — nothing is
+        uploaded, and you don&apos;t need an account.
       </p>
 
       <div className="card" style={{ marginBottom: 18, borderStyle: "dashed" }}>
@@ -95,10 +98,13 @@ export default function Analyze() {
       <div className="card" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
           <div>
-            <label className="label">Stroke</label>
-            <select value={stroke} onChange={(e) => setStroke(e.target.value)} className="select">
+            <label className="label" htmlFor="stroke">Stroke</label>
+            <select id="stroke" value={stroke} onChange={(e) => setStroke(e.target.value)} className="select">
               {STROKES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
+          </div>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", maxWidth: 320 }}>
+            Filming a serve? Pick <strong style={{ color: "var(--ink)" }}>serve</strong> to also get an estimated speed.
           </div>
         </div>
 
@@ -127,6 +133,16 @@ export default function Analyze() {
 
       {result && (
         <>
+          {user ? (
+            <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
+              ✓ Saved to your history. <a href="/progress" style={{ color: "var(--court)", fontWeight: 600 }}>See your progress →</a>
+            </div>
+          ) : enabled ? (
+            <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
+              <a href="/account" style={{ color: "var(--court)", fontWeight: 600 }}>Sign in</a> to save this and track your form over time.
+            </div>
+          ) : null}
+
           {result.serveSpeedKmh ? (
             <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
               <span style={{ fontSize: 40 }}>🎾</span>
@@ -185,22 +201,24 @@ export default function Analyze() {
             <div className="card">
               <div className="card-title">Your contact position</div>
               <Skeleton skeleton={result.skeleton} />
-              <table className="data" style={{ marginTop: 14 }}>
-                <thead><tr><th>Check</th><th>Reading</th><th></th></tr></thead>
-                <tbody>
-                  {result.jointFeedback.map((j) => (
-                    <tr key={j.joint}>
-                      <td>{j.joint}</td>
-                      <td className="mono">{j.reading}</td>
-                      <td>
-                        <span className={`pill ${j.status === "good" ? "good" : j.status === "minor" ? "warn" : "off"}`}>
-                          {j.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="table-wrap" style={{ marginTop: 14 }}>
+                <table className="data">
+                  <thead><tr><th>Check</th><th>Reading</th><th></th></tr></thead>
+                  <tbody>
+                    {result.jointFeedback.map((j) => (
+                      <tr key={j.joint}>
+                        <td>{j.joint}</td>
+                        <td className="mono">{j.reading}</td>
+                        <td>
+                          <span className={`pill ${j.status === "good" ? "good" : j.status === "minor" ? "warn" : "off"}`}>
+                            {j.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <p style={{ color: "var(--ink-soft)", fontSize: 12, marginTop: 10 }}>
                 Measured from {result.framesAnalyzed} frames at your peak-swing moment.
               </p>
@@ -220,7 +238,9 @@ export default function Analyze() {
             ) : shareUrl ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <input className="select" style={{ flex: 1, minWidth: 240 }} readOnly value={shareUrl} onFocus={(e) => e.target.select()} />
-                <button className="btn btn-ghost" onClick={() => navigator.clipboard?.writeText(shareUrl)}>Copy</button>
+                <button className="btn btn-ghost" onClick={() => { navigator.clipboard?.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
+                  {copied ? "Copied!" : "Copy"}
+                </button>
                 <a className="btn" href={shareUrl} target="_blank" rel="noreferrer">Open</a>
               </div>
             ) : (
@@ -267,7 +287,7 @@ function WorkoutCard({ w }: { w: Workout }) {
       <div className="card-title">{w.title} · {w.total_minutes} min · {w.level}</div>
       <div className="grid grid-2">
         {w.drills.map((d) => (
-          <div key={d.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
+          <div key={d.id} className="subcard">
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
               <strong>{d.name}</strong>
               <span className="tag">{d.est_minutes}m</span>
