@@ -55,6 +55,22 @@ export default function Analyze() {
         contact, then turns what it finds into drills.
       </p>
 
+      <div className="card" style={{ marginBottom: 18, borderStyle: "dashed" }}>
+        <div className="card-title">Filming a clip that analyses well</div>
+        <div className="grid grid-2" style={{ gap: 10 }}>
+          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8, fontSize: 14, color: "var(--ink-soft)" }}>
+            <li>› <strong style={{ color: "var(--ink)" }}>Film from the side</strong>, level with you, not head-on.</li>
+            <li>› <strong style={{ color: "var(--ink)" }}>Whole body in frame</strong> through the entire swing.</li>
+            <li>› <strong style={{ color: "var(--ink)" }}>One stroke per clip</strong>, about 2–5 seconds.</li>
+          </ul>
+          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8, fontSize: 14, color: "var(--ink-soft)" }}>
+            <li>› <strong style={{ color: "var(--ink)" }}>Good light</strong>, and a plain-ish background helps.</li>
+            <li>› <strong style={{ color: "var(--ink)" }}>Steady camera</strong> — prop the phone up, don't pan.</li>
+            <li>› <strong style={{ color: "var(--ink)" }}>Capture the finish</strong>, not just up to contact.</li>
+          </ul>
+        </div>
+      </div>
+
       <div className="card" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
           <div>
@@ -96,6 +112,11 @@ export default function Analyze() {
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                 <span style={{ fontSize: 22, fontWeight: 700, textTransform: "capitalize" }}>{result.stroke}</span>
                 <span className="pill accent">form {result.formScore}/100</span>
+                {result.serveSpeedKmh && (
+                  <span className="pill" title="Rough estimate from hand speed — not a radar gun">
+                    ~{result.serveSpeedKmh} km/h · {Math.round(result.serveSpeedKmh * 0.621)} mph
+                  </span>
+                )}
               </div>
 
               {result.flaws.length === 0 ? (

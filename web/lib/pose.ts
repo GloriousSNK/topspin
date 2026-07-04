@@ -46,6 +46,7 @@ export interface PoseAnalysis {
   framesAnalyzed: number;
   seconds: number;
   videoFrames: number;
+  serveSpeedKmh?: number;   // rough estimate, serves only
 }
 
 type Pt = { x: number; y: number; z: number; visibility?: number };
@@ -316,6 +317,19 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
     ? Math.round((checks.reduce((s, c) => s + c.q, 0) / checks.length) * 100)
     : 70;
 
+  // Rough serve-speed estimate from peak hand speed at contact. Body scale gives
+  // metres (torso ~0.5 m), then hand speed -> racquet head -> ball off the strings.
+  let serveSpeedKmh: number | undefined;
+  if (stroke === "serve") {
+    let peak = 0;
+    for (let i = 1; i < P.length; i++) peak = Math.max(peak, dist(P[i][Wr], P[i - 1][Wr]));
+    const metresPerUnit = 0.5 / torsoLen;
+    const handMps = peak * metresPerUnit * fps;   // smoothing damps the peak a little
+    const ballMps = handMps * 3.2;                 // hand -> racquet head -> ball, approximate
+    const kmh = Math.round((ballMps * 3.6) / 5) * 5;
+    if (kmh >= 30 && kmh <= 260) serveSpeedKmh = kmh;
+  }
+
   // Contact-frame skeleton (normalized) for drawing.
   const nm = (i: number): [number, number] => [cf[i].x, cf[i].y];
   const skeleton: Record<string, [number, number]> = {
@@ -337,6 +351,7 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
     framesAnalyzed: frames.length,
     seconds: Math.round(duration),
     videoFrames,
+    serveSpeedKmh,
   };
 }
 
