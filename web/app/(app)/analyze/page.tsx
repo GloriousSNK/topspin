@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { Workout } from "@/lib/types";
 import type { PoseAnalysis } from "@/lib/pose";
+import { useAuth } from "@/components/AuthProvider";
+import { saveSession, createShare } from "@/lib/history";
 
 const STROKES = ["auto", "forehand", "backhand", "serve", "volley", "slice"];
 
@@ -15,12 +17,15 @@ export default function Analyze() {
   const [result, setResult] = useState<PoseAnalysis | null>(null);
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [drag, setDrag] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { user, enabled } = useAuth();
 
   async function handleFile(file: File) {
     setErr(null);
     setResult(null);
     setWorkout(null);
+    setShareUrl(null);
     setFilename(file.name);
     try {
       setBusy("Analysing your stroke… (first run loads the model)");
@@ -28,6 +33,7 @@ export default function Analyze() {
       const res = await analyzeStroke(file, stroke);
       setResult(res);
       api.recordAnalysis(res.seconds, res.videoFrames); // count it (no clip leaves the device)
+      if (user) saveSession(res).catch(() => {}); // save to history when signed in
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't analyse that clip.");
     } finally {
@@ -42,6 +48,21 @@ export default function Analyze() {
       setWorkout(await api.workoutFromFlaws(result.flaws, "intermediate", 45));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function makeShare() {
+    if (!result) return;
+    try {
+      setBusy("Creating summary…");
+      const id = await createShare({
+        stroke: result.stroke, formScore: result.formScore, serveSpeedKmh: result.serveSpeedKmh,
+        flaws: result.flaws, jointFeedback: result.jointFeedback, workout, createdAt: new Date().toISOString(),
+      });
+      if (id) setShareUrl(`${window.location.origin}/s/${id}`);
+      else setErr("Couldn't create the summary. Sign in and try again.");
     } finally {
       setBusy(null);
     }
@@ -173,6 +194,25 @@ export default function Analyze() {
           </div>
 
           {workout && <WorkoutCard w={workout} />}
+
+          <div className="card" style={{ marginTop: 18 }}>
+            <div className="card-title">Share with a coach</div>
+            {!enabled ? (
+              <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>Accounts aren&apos;t set up on this deployment yet.</p>
+            ) : !user ? (
+              <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>
+                <a href="/account" style={{ color: "var(--court)", fontWeight: 600 }}>Sign in</a> to create a one-page summary link you can send to a coach.
+              </p>
+            ) : shareUrl ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input className="select" style={{ flex: 1, minWidth: 240 }} readOnly value={shareUrl} onFocus={(e) => e.target.select()} />
+                <button className="btn btn-ghost" onClick={() => navigator.clipboard?.writeText(shareUrl)}>Copy</button>
+                <a className="btn" href={shareUrl} target="_blank" rel="noreferrer">Open</a>
+              </div>
+            ) : (
+              <button className="btn" onClick={makeShare} disabled={!!busy}>Create a shareable summary →</button>
+            )}
+          </div>
         </>
       )}
     </div>

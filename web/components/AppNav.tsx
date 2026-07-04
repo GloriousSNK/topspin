@@ -9,7 +9,9 @@ const TABS = [
   { href: "/analyze", label: "Clip Analysis" },
   { href: "/workouts", label: "Drills & Workouts" },
   { href: "/ball-lab", label: "Ball Lab" },
+  { href: "/progress", label: "Progress" },
   { href: "/insights", label: "Insights" },
+  { href: "/account", label: "Account" },
 ];
 
 export default function AppNav() {

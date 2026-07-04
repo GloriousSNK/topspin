@@ -25,7 +25,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   scriptSrc,
   "font-src 'self' data:",
-  `connect-src 'self' ${ML_ORIGINS} ${POSE_ORIGINS}`,
+  `connect-src 'self' ${ML_ORIGINS} ${POSE_ORIGINS} https://*.supabase.co wss://*.supabase.co`,
   "worker-src 'self' blob:",
   "base-uri 'self'",
   "form-action 'self'",
