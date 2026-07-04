@@ -30,7 +30,7 @@ export default function Landing() {
               <Link href="/ball-lab" className="btn btn-ghost btn-lg">Open the Ball Lab</Link>
             </div>
             <p style={{ marginTop: 18, fontSize: 13, color: "var(--ink-soft)", fontWeight: 500 }}>
-              Runs on your machine. No account, nothing uploaded.
+              Clips are analysed on your device, never uploaded. No sign-up needed to try it.
             </p>
           </div>
           <HeroTilt>

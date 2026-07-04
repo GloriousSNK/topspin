@@ -2,12 +2,19 @@ import Link from "next/link";
 import BrandMark from "./BrandMark";
 import MobileMenu from "./MobileMenu";
 
+// Tools are linked directly now, so nothing hides behind "open the app".
 const LINKS = [
-  { href: "/#features", label: "Features" },
-  { href: "/#how", label: "How it works" },
+  { href: "/ball-lab", label: "Ball Lab" },
+  { href: "/workouts", label: "Drills" },
   { href: "/learn", label: "Learn" },
-  { href: "/insights", label: "Insights" },
   { href: "/about", label: "About" },
+];
+
+const MOBILE = [
+  { href: "/analyze", label: "Analyse a clip" },
+  ...LINKS,
+  { href: "/insights", label: "Insights" },
+  { href: "/account", label: "Sign in" },
 ];
 
 export default function SiteNav() {
@@ -17,19 +24,14 @@ export default function SiteNav() {
         <div className="navbar-inner">
           <BrandMark href="/" />
           <nav className="navlinks">
-            {LINKS.map((l) =>
-              // In-page anchors use a plain <a> so they scroll reliably on the
-              // first click (Next's <Link> can swallow same-route hash scrolls).
-              l.href.includes("#") ? (
-                <a key={l.href} href={l.href}>{l.label}</a>
-              ) : (
-                <Link key={l.href} href={l.href}>{l.label}</Link>
-              )
-            )}
+            {LINKS.map((l) => (
+              <Link key={l.href} href={l.href}>{l.label}</Link>
+            ))}
           </nav>
           <span className="nav-spacer" />
-          <Link href="/analyze" className="btn">Open the app</Link>
-          <MobileMenu links={LINKS} cta={{ href: "/analyze", label: "Open the app" }} />
+          <Link href="/account" className="btn btn-ghost nav-signin">Sign in</Link>
+          <Link href="/analyze" className="btn">Analyse a clip</Link>
+          <MobileMenu links={MOBILE} cta={{ href: "/analyze", label: "Analyse a clip" }} />
         </div>
       </div>
     </header>

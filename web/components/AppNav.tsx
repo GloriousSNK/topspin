@@ -6,8 +6,8 @@ import BrandMark from "./BrandMark";
 import MobileMenu from "./MobileMenu";
 
 const TABS = [
-  { href: "/analyze", label: "Clip Analysis" },
-  { href: "/workouts", label: "Drills & Workouts" },
+  { href: "/analyze", label: "Analyse" },
+  { href: "/workouts", label: "Drills" },
   { href: "/ball-lab", label: "Ball Lab" },
   { href: "/progress", label: "Progress" },
   { href: "/insights", label: "Insights" },

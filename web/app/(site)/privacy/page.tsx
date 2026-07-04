@@ -24,9 +24,9 @@ export default function Privacy() {
           The short version: we barely track you.
         </h1>
         <p style={{ fontSize: 17, color: "var(--ink-soft)", lineHeight: 1.65, marginBottom: 36 }}>
-          TopSpin has no accounts, no cookies, and no third-party trackers or ad networks. We keep a
-          small, anonymous count of traffic so we can see whether the thing is useful — that&apos;s it.
-          Here&apos;s exactly what that means.
+          You can use TopSpin without an account, and if you do, we collect nothing personal. No
+          cookies, no third-party trackers, no ad networks. An account is optional and only stores
+          what you&apos;d expect. Here&apos;s exactly what that means.
         </p>
 
         <Section title="What we collect">
@@ -40,27 +40,42 @@ export default function Privacy() {
 
         <Section title="What we never collect">
           <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
-            <li>• No names, emails, or accounts. There&apos;s nothing to sign up for.</li>
+            <li>• No personal data at all unless you choose to make an account.</li>
             <li>• No cookies and no third-party analytics, ads, or social pixels.</li>
             <li>• No <strong style={{ color: "var(--ink)" }}>IP addresses stored</strong>. Your IP is used for a split second to rate-limit abuse, then discarded.</li>
             <li>• No mouse movement, scroll tracking, keystrokes, or device fingerprinting.</li>
           </ul>
         </Section>
 
+        <Section title="If you make an account (optional)">
+          Only if you sign up, we store your <strong style={{ color: "var(--ink)" }}>email</strong> and the
+          <strong style={{ color: "var(--ink)" }}> analyses you save</strong> (stroke, form score, flaws, serve
+          estimate) so you can track progress. Auth is handled by Supabase. We don&apos;t see or store your
+          password, and we never sell or share any of it. You can delete all your saved analyses from the
+          account page at any time.
+        </Section>
+
         <Section title="Your video clips">
           Clip analysis runs entirely in your browser. Your video is never uploaded, never stored, and
-          never leaves your device. When you close the tab, it&apos;s gone.
+          never leaves your device — with or without an account. Only the resulting numbers are saved, and
+          only if you&apos;re signed in. When you close the tab, the clip is gone.
+        </Section>
+
+        <Section title="Shared summaries">
+          If you create a shareable coach summary, it lives at a public link that anyone with the URL can
+          open. It contains the stroke read and suggested drills, not your identity. Only make one if
+          you&apos;re happy to hand out the link.
         </Section>
 
         <Section title="Where the data lives">
-          Everything sits in our own database, with no analytics SaaS in the loop. Traffic records are
-          capped and old ones are pruned automatically, so nothing is kept indefinitely.
+          Traffic counts sit in our own database; account data sits in Supabase. No analytics SaaS is in
+          the loop. Anonymous traffic records are capped and old ones are pruned automatically.
         </Section>
 
         <Section title="Your control">
-          The only identifier lives in your browser, so you can reset it any time by clearing this
-          site&apos;s local storage or using a private window. There&apos;s nothing server-side tied to
-          you to delete.
+          Browsing anonymously, the only identifier lives in your browser, so you can reset it by clearing
+          local storage. With an account, you can wipe your saved analyses from the account page, and ask
+          us to remove your account entirely.
         </Section>
 
         <Section title="Changes">

@@ -127,17 +127,31 @@ export default function Analyze() {
 
       {result && (
         <>
+          {result.serveSpeedKmh ? (
+            <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 40 }}>🎾</span>
+              <div className="stat">
+                <span className="stat-value" style={{ fontSize: 40, color: "var(--court)" }}>
+                  ~{result.serveSpeedKmh} km/h
+                </span>
+                <span className="stat-label">Estimated serve speed · {Math.round(result.serveSpeedKmh * 0.621)} mph</span>
+              </div>
+              <span style={{ color: "var(--ink-soft)", fontSize: 12, maxWidth: 240, marginLeft: "auto" }}>
+                A rough read from hand speed and body scale, not a radar gun.
+              </span>
+            </div>
+          ) : stroke === "serve" ? null : (
+            <p style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 12 }}>
+              Tip: pick <strong>serve</strong> from the dropdown before uploading to get a serve-speed estimate.
+            </p>
+          )}
+
           <div className="grid grid-2" style={{ marginBottom: 18 }}>
             <div className="card">
               <div className="card-title">What we saw</div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
                 <span style={{ fontSize: 22, fontWeight: 700, textTransform: "capitalize" }}>{result.stroke}</span>
                 <span className="pill accent">form {result.formScore}/100</span>
-                {result.serveSpeedKmh && (
-                  <span className="pill" title="Rough estimate from hand speed — not a radar gun">
-                    ~{result.serveSpeedKmh} km/h · {Math.round(result.serveSpeedKmh * 0.621)} mph
-                  </span>
-                )}
               </div>
 
               {result.flaws.length === 0 ? (
