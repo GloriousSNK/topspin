@@ -464,31 +464,63 @@ def dynamic_drill(goal: str) -> dict:
     }, goal)
 
 
-def _gemini_drill(goal: str, key: str) -> dict:
-    prompt = (
+def _drill_prompt(goal: str) -> str:
+    return (
         "You are a tennis coach. Generate ONE practice drill for this player goal, "
         "as strict JSON with keys: name (string), focus (string, one coaching sentence), "
         "category (one word), intensity ('low'|'medium'|'high'), sets (int), reps (int), "
         "steps (array of 3-4 short instruction strings). No markdown, JSON only.\n"
         f"Goal: {goal}"
     )
-    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-    resp = json.loads(urllib.request.urlopen(req, timeout=15).read())
-    text = resp["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+
+def _parse_drill_json(text: str, goal: str) -> dict:
+    text = text.strip()
     if text.startswith("```"):
         text = text.strip("`")
         text = text[4:] if text.lower().startswith("json") else text
     return _clean_drill(json.loads(text), goal)
 
 
+def _openai_drill(goal: str, key: str) -> dict:
+    """Works with any OpenAI-compatible endpoint: Groq, OpenRouter, Together,
+    Mistral, a local Ollama, etc. Set AI_BASE_URL + AI_MODEL to pick one."""
+    base = os.getenv("AI_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+    model = os.getenv("AI_MODEL", "llama-3.1-8b-instant")
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": _drill_prompt(goal)}],
+        "temperature": 0.7,
+    }).encode()
+    req = urllib.request.Request(
+        base + "/chat/completions", data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+    )
+    resp = json.loads(urllib.request.urlopen(req, timeout=20).read())
+    return _parse_drill_json(resp["choices"][0]["message"]["content"], goal)
+
+
+def _gemini_drill(goal: str, key: str) -> dict:
+    body = json.dumps({"contents": [{"parts": [{"text": _drill_prompt(goal)}]}]}).encode()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    resp = json.loads(urllib.request.urlopen(req, timeout=20).read())
+    return _parse_drill_json(resp["candidates"][0]["content"]["parts"][0]["text"], goal)
+
+
 def generate_drill(goal: str) -> dict:
-    """AI-generated drill if a free Gemini key is configured; else rule-based."""
-    key = os.getenv("GEMINI_API_KEY")
-    if key:
+    """Use whichever AI is configured, else the free rule-based generator.
+    Priority: any OpenAI-compatible provider (AI_API_KEY) -> Gemini -> rules."""
+    ai_key = os.getenv("AI_API_KEY")
+    if ai_key:
         try:
-            return _gemini_drill(goal, key)
+            return _openai_drill(goal, ai_key)
+        except Exception:
+            pass
+    gem = os.getenv("GEMINI_API_KEY")
+    if gem:
+        try:
+            return _gemini_drill(goal, gem)
         except Exception:
             pass
     return dynamic_drill(goal)
