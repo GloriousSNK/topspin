@@ -10,15 +10,29 @@ interface AuthState {
   enabled: boolean;
   signUp: (email: string, password: string) => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<string | null>;
+  signInWithGoogle: () => Promise<void>;
+  resend: (email: string) => Promise<string | null>;
   signOut: () => Promise<void>;
 }
 
+const notConfigured = "Accounts are not configured.";
 const Ctx = createContext<AuthState>({
   user: null, loading: true, enabled: false,
-  signUp: async () => "Accounts are not configured.",
-  signIn: async () => "Accounts are not configured.",
+  signUp: async () => notConfigured,
+  signIn: async () => notConfigured,
+  signInWithGoogle: async () => {},
+  resend: async () => notConfigured,
   signOut: async () => {},
 });
+
+// Turn Supabase's terse errors into something a person can act on.
+function friendly(msg: string): string {
+  const m = msg.toLowerCase();
+  if (m.includes("not confirmed")) return "Confirm your email first — check your inbox, or use Google below.";
+  if (m.includes("invalid login")) return "Wrong email or password. If you just signed up, confirm your email first (or resend below).";
+  if (m.includes("already registered")) return "That email already has an account — try signing in.";
+  return msg;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -34,26 +48,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  const origin = () => (typeof window !== "undefined" ? window.location.origin : "");
+
   const signUp = async (email: string, password: string) => {
-    if (!supabase) return "Accounts are not configured.";
-    // Send the confirmation link back to THIS origin (prod or localhost),
-    // not whatever the Supabase Site URL happens to be.
+    if (!supabase) return notConfigured;
     const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: `${window.location.origin}/account` },
+      email, password, options: { emailRedirectTo: `${origin()}/account` },
     });
-    return error ? error.message : null;
+    return error ? friendly(error.message) : null;
   };
   const signIn = async (email: string, password: string) => {
-    if (!supabase) return "Accounts are not configured.";
+    if (!supabase) return notConfigured;
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? error.message : null;
+    return error ? friendly(error.message) : null;
+  };
+  const signInWithGoogle = async () => {
+    if (!supabase) return;
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${origin()}/account` },
+    });
+  };
+  const resend = async (email: string) => {
+    if (!supabase) return notConfigured;
+    const { error } = await supabase.auth.resend({ type: "signup", email });
+    return error ? friendly(error.message) : null;
   };
   const signOut = async () => { await supabase?.auth.signOut(); };
 
   return (
-    <Ctx.Provider value={{ user, loading, enabled: authEnabled, signUp, signIn, signOut }}>
+    <Ctx.Provider value={{ user, loading, enabled: authEnabled, signUp, signIn, signInWithGoogle, resend, signOut }}>
       {children}
     </Ctx.Provider>
   );

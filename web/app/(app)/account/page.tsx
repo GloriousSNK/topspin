@@ -14,7 +14,7 @@ const PERKS = [
 ];
 
 export default function Account() {
-  const { user, enabled, loading, signIn, signUp, signOut } = useAuth();
+  const { user, enabled, loading, signIn, signUp, signInWithGoogle, resend, signOut } = useAuth();
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -93,6 +93,11 @@ export default function Account() {
 
       <div className="grid stack-mobile" style={{ gridTemplateColumns: "1fr 1fr", gap: 18, alignItems: "start" }}>
         <form onSubmit={submit} className="card" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <button type="button" className="btn btn-ghost" style={{ justifyContent: "center", gap: 10 }}
+            onClick={() => signInWithGoogle()}>
+            <span style={{ fontWeight: 800, color: "var(--court)" }}>G</span> Continue with Google
+          </button>
+          <div style={{ textAlign: "center", fontSize: 12, color: "var(--ink-soft)" }}>or with email</div>
           <div>
             <label className="label" htmlFor="email">Email</label>
             <input id="email" className="select" style={{ width: "100%" }} type="email" required value={email}
@@ -107,6 +112,12 @@ export default function Account() {
           </div>
           {msg && <div role="alert" style={{ color: "var(--danger)", fontSize: 13 }}>⚠ {msg}</div>}
           {ok && <div role="status" style={{ color: "var(--good)", fontSize: 13 }}>✓ {ok}</div>}
+          {msg && /confirm/i.test(msg) && (
+            <button type="button" className="btn btn-ghost" style={{ justifyContent: "center", fontSize: 13 }}
+              onClick={async () => { const r = await resend(email); setOk(r ? null : "Confirmation email resent."); setMsg(r); }}>
+              Resend confirmation email
+            </button>
+          )}
           <button className="btn" disabled={busy} style={{ justifyContent: "center" }}>
             {busy ? "…" : mode === "in" ? "Sign in" : "Create account"}
           </button>
