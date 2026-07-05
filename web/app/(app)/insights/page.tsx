@@ -31,7 +31,7 @@ export default function Insights() {
 
   return (
     <div>
-      <div className="h1">Traffic insights</div>
+      <h1 className="h1">Traffic insights</h1>
       <p className="lead">
         Anonymous, self-hosted analytics — no cookies, no third parties, nothing leaves your
         machine. Updates live as people move through the site.

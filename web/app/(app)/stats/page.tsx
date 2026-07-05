@@ -16,10 +16,13 @@ export default function Stats() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    let alive = true;
     if (!user) { setLoad(false); return; }
     Promise.all([getSessions(), getCustomDrills(50)]).then(([r, s]) => {
+      if (!alive) return;
       setRows(r); setSaved(s); setLoad(false);
     });
+    return () => { alive = false; };
   }, [user]);
 
   const topFlaws = useMemo(() => {
@@ -40,12 +43,14 @@ export default function Stats() {
   }
 
   async function renameSaved(id: string, title: string) {
+    const prev = saved;
     setSaved((s) => s.map((r) => {
       if (r.id !== id) return r;
       const d = r.drill as unknown as Record<string, unknown>;
       return { ...r, drill: (d.kind === "workout" ? { ...d, title } : { ...d, name: title }) as unknown as CustomDrillRow["drill"] };
     }));
-    await renameCustomDrill(id, title);
+    const ok = await renameCustomDrill(id, title);
+    if (!ok) setSaved(prev); // roll back if the write was rejected
   }
 
   async function adaptive() {
@@ -57,7 +62,7 @@ export default function Stats() {
   }
 
   if (!enabled) return <Msg title="Stats" body="Accounts aren't set up on this deployment yet." />;
-  if (loading || load) return <div className="h1">Stats</div>;
+  if (loading || load) return <h1 className="h1">Stats</h1>;
   if (!user) return <Msg title="Stats" body="Sign in to track your form and save drills." cta />;
 
   const scored = rows.filter((r) => typeof r.form_score === "number");
@@ -70,7 +75,7 @@ export default function Stats() {
   return (
     <div>
       <span className="eyebrow">Your numbers</span>
-      <div className="h1">Stats</div>
+      <h1 className="h1">Stats</h1>
       <p className="lead">{rows.length} analyses · {saved.length} saved. Watch your form climb and keep your drills in one place.</p>
 
       {nothing ? (
@@ -309,6 +314,6 @@ function Stat({ v, l, accent }: { v: number; l: string; accent?: boolean }) {
 }
 
 function Msg({ title, body, cta }: { title: string; body: string; cta?: boolean }) {
-  return <div><div className="h1">{title}</div><p className="lead">{body}</p>
+  return <div><h1 className="h1">{title}</h1><p className="lead">{body}</p>
     {cta && <Link href="/account" className="btn">Sign in</Link>}</div>;
 }

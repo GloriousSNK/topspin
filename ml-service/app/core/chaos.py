@@ -25,7 +25,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 
-from .ball_physics import LaunchState, simulate, simulate_batch, COURT_LENGTH, COURT_WIDTH
+from .ball_physics import (
+    LaunchState, simulate, simulate_batch, integrate_paths_batch,
+    COURT_LENGTH, COURT_WIDTH,
+)
 
 
 @dataclass
@@ -75,28 +78,19 @@ def finite_time_lyapunov(
             directions.append(d)
     directions = directions[:n_directions]
 
-    # Track mean separation over the shared time window.
-    sep_accumulator = None
-    counts = None
+    # Integrate all perturbed shots as one vectorised batch on the reference's
+    # time grid, instead of a serial `simulate` per direction. This is the hot
+    # path of the endpoint; batching collapses ~4 full integrations into one.
+    n_steps = max(ref_len - 1, 1)
+    dirs = np.array(directions)                                   # (D, 3)
+    v0 = base[None, :] + perturbation * dirs                      # (D, 3)
+    p0 = np.tile(launch.position.astype(float), (len(directions), 1))
+    s0 = np.tile(launch.spin.astype(float), (len(directions), 1))
+    paths = integrate_paths_batch(p0, v0, s0, n_steps=n_steps, dt=dt)  # (D, ref_len, 3)
 
-    for d in directions:
-        perturbed = LaunchState(
-            position=launch.position.copy(),
-            velocity=base + perturbation * d,
-            spin=launch.spin.copy(),
-        )
-        traj = simulate(perturbed, dt=dt)
-        n = min(ref_len, len(traj.t))
-        sep = np.linalg.norm(ref.positions[:n] - traj.positions[:n], axis=1)
-        if sep_accumulator is None:
-            sep_accumulator = np.zeros(ref_len)
-            counts = np.zeros(ref_len)
-        sep_accumulator[:n] += sep
-        counts[:n] += 1.0
-
-    counts = np.maximum(counts, 1.0)
-    mean_sep = sep_accumulator / counts
-    mean_sep = np.maximum(mean_sep, 1e-12)
+    # Mean separation from the reference over the shared time window.
+    sep = np.linalg.norm(paths - ref.positions[None, :ref_len, :], axis=2)  # (D, ref_len)
+    mean_sep = np.maximum(sep.mean(axis=0), 1e-12)
 
     # Lyapunov estimate from the log-separation slope over the growth phase.
     t = ref.t

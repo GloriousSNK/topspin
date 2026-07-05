@@ -17,9 +17,9 @@
   --accent-dim: #c2dd2c;
   --court:      #2f6fb0; /* hard-court blue */
   --court-deep: #245a92;
-  --good:       #2f9e5b; /* grass / "in" */
+  --good:       #1f7a45; /* grass / "in" — darkened for WCAG AA on white text */
   --warn:       #e0a32b; /* amber */
-  --danger:     #d1502e; /* clay / "out" */
+  --danger:     #c14526; /* clay / "out" — darkened for WCAG AA */
 
   /* legacy aliases so existing JSX var() references keep working */
   --bg: var(--paper);
@@ -155,6 +155,7 @@ a:hover .card { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--in
 @media (max-width: 560px) {
   table.data { min-width: 420px; }
   .btn, .select, .nav-account { min-height: 44px; }
+  .icon-btn { min-width: 44px; min-height: 44px; }
 }
 .lead { color: var(--ink-soft); font-size: 15px; margin-bottom: 30px; max-width: 720px; line-height: 1.55; }
 

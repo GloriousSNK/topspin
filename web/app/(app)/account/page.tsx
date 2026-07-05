@@ -31,10 +31,12 @@ export default function Account() {
 
   useEffect(() => {
     if (!user) return;
-    getSessions(200).then((r) => setCount(r.length));
+    let alive = true;
+    getSessions(200).then((r) => { if (alive) setCount(r.length); });
     getMyProfile().then((p) => {
-      if (p) { setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); setUtr(p.utr ?? ""); setUsta(p.usta ?? ""); }
+      if (alive && p) { setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); setUtr(p.utr ?? ""); setUsta(p.usta ?? ""); }
     });
+    return () => { alive = false; };
   }, [user]);
 
   async function saveProfile(pub: boolean) {
@@ -68,14 +70,14 @@ export default function Account() {
   }
 
   if (!enabled) return <Bare title="Account" body="Accounts aren't set up on this deployment yet." />;
-  if (loading) return <div className="h1">Account</div>;
+  if (loading) return <h1 className="h1">Account</h1>;
 
   // ---- signed in ----
   if (user) {
     const initial = (user.email ?? "?").charAt(0).toUpperCase();
     return (
       <div>
-        <div className="h1">Your account</div>
+        <h1 className="h1">Your account</h1>
         <p className="lead">Everything you analyse is saved here so you can track it over time.</p>
 
         <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
@@ -151,7 +153,7 @@ export default function Account() {
   // ---- signed out ----
   return (
     <div>
-      <div className="h1">{mode === "in" ? "Welcome back" : "Create your account"}</div>
+      <h1 className="h1">{mode === "in" ? "Welcome back" : "Create your account"}</h1>
       <p className="lead">It&apos;s free, takes a few seconds, and keeps your progress in one place.</p>
 
       <div className="grid stack-mobile" style={{ gridTemplateColumns: "1fr 1fr", gap: 18, alignItems: "start" }}>
@@ -219,5 +221,5 @@ function QuickCard({ href, title, desc }: { href: string; title: string; desc: s
 }
 
 function Bare({ title, body }: { title: string; body: string }) {
-  return <div><div className="h1">{title}</div><p className="lead">{body}</p></div>;
+  return <div><h1 className="h1">{title}</h1><p className="lead">{body}</p></div>;
 }

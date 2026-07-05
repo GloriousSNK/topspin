@@ -226,6 +226,40 @@ def _acceleration_batch(vel: np.ndarray, spin: np.ndarray) -> np.ndarray:
     return acc
 
 
+def integrate_paths_batch(
+    positions: np.ndarray,
+    velocities: np.ndarray,
+    spins: np.ndarray,
+    n_steps: int,
+    dt: float = 4e-3,
+) -> np.ndarray:
+    """
+    Integrate N shots on a common fixed time grid and return full position
+    histories: (N, n_steps + 1, 3).
+
+    Unlike `simulate_batch` (which only records landing points), this keeps the
+    whole path so the chaos module can measure how nearby shots separate over
+    time -- as one vectorised batch instead of a Python loop of `simulate`.
+    Shots are integrated for the full grid (no early ground-stop); the caller
+    windows the early growth phase, so post-landing tail is not used.
+    """
+    pos = positions.astype(float).copy()
+    vel = velocities.astype(float).copy()
+    spin = spins.astype(float)
+
+    out = np.empty((positions.shape[0], n_steps + 1, 3))
+    out[:, 0, :] = pos
+    for i in range(n_steps):
+        k1p, k1v = vel, _acceleration_batch(vel, spin)
+        k2p, k2v = vel + 0.5 * dt * k1v, _acceleration_batch(vel + 0.5 * dt * k1v, spin)
+        k3p, k3v = vel + 0.5 * dt * k2v, _acceleration_batch(vel + 0.5 * dt * k2v, spin)
+        k4p, k4v = vel + dt * k3v, _acceleration_batch(vel + dt * k3v, spin)
+        pos = pos + (dt / 6.0) * (k1p + 2 * k2p + 2 * k3p + k4p)
+        vel = vel + (dt / 6.0) * (k1v + 2 * k2v + 2 * k3v + k4v)
+        out[:, i + 1, :] = pos
+    return out
+
+
 def simulate_batch(
     positions: np.ndarray,
     velocities: np.ndarray,

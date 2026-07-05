@@ -65,7 +65,7 @@ export default function Workouts() {
   async function saveDrill(d: CatalogueDrill) {
     const ok = await saveCustomDrill({
       name: d.name, focus: d.focus, category: d.category, intensity: d.intensity,
-      sets: d.default_sets, reps: d.default_reps, steps: [], goal: query,
+      sets: d.default_sets, reps: d.default_reps, steps: [], goal: d.category,
     });
     if (ok) {
       setSavedIds((prev) => new Set(prev).add(d.id));
@@ -87,7 +87,7 @@ export default function Workouts() {
   return (
     <div>
       <span className="eyebrow">Practice</span>
-      <div className="h1">Drills & Workouts</div>
+      <h1 className="h1">Drills & Workouts</h1>
       <p className="lead">
         Pick a goal and hit Generate for a ready-made session — or scroll down to browse all
         {" "}{catalogue.length || 34} drills. Sessions from a clip analysis pull straight from here.

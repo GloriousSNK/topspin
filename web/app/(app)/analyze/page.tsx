@@ -72,7 +72,7 @@ export default function Analyze() {
   return (
     <div>
       <span className="eyebrow">Analysis</span>
-      <div className="h1">Clip Analysis</div>
+      <h1 className="h1">Clip Analysis</h1>
       <p className="lead">
         Upload a clip of one stroke. Pose detection tracks your body and checks your angles at
         contact, then turns what it finds into drills. It all runs on your device — nothing is

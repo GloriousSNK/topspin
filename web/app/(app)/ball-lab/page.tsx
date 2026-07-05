@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { BallPrediction, LaunchInput } from "@/lib/types";
 
@@ -38,22 +38,26 @@ export default function BallLab() {
   const [pred, setPred] = useState<BallPrediction | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const reqId = useRef(0);
 
   const run = useCallback(async (ctrl: Controls) => {
+    const id = ++reqId.current;
     setLoading(true);
     setErr(null);
     try {
-      setPred(await api.predictBall(toLaunch(ctrl), 120));
+      const p = await api.predictBall(toLaunch(ctrl), 120);
+      if (id === reqId.current) setPred(p); // ignore out-of-order stale responses
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Request failed");
+      if (id === reqId.current) setErr(e instanceof Error ? e.message : "Request failed");
     } finally {
-      setLoading(false);
+      if (id === reqId.current) setLoading(false);
     }
   }, []);
 
-  // Live: recompute shortly after any slider change (and on mount).
+  // Live: recompute a beat after the slider settles (and on mount). The longer
+  // debounce keeps a drag from firing a burst of heavy physics requests.
   useEffect(() => {
-    const t = setTimeout(() => run(c), 250);
+    const t = setTimeout(() => run(c), 400);
     return () => clearTimeout(t);
   }, [c, run]);
 
@@ -70,7 +74,7 @@ export default function BallLab() {
   return (
     <div>
       <span className="eyebrow">Lab</span>
-      <div className="h1">Ball Lab</div>
+      <h1 className="h1">Ball Lab</h1>
       <p className="lead">
         A struck ball is a nonlinear system, so tiny differences at contact grow on the way to the
         bounce. Adjust the shot, then read off the flight and how sensitive it is.
