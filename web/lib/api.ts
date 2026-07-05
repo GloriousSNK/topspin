@@ -7,6 +7,7 @@ import type {
   Workout,
   CatalogueDrill,
   TrafficStats,
+  GeneratedDrill,
 } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_ML_URL ?? "http://127.0.0.1:8000";
@@ -61,6 +62,8 @@ export const api = {
 
   workoutByGoal: (goal: string, level = "intermediate", maxMinutes = 45) =>
     post<Workout>("/drills/by-goal", { goal, level, max_minutes: maxMinutes }),
+
+  generateDrill: (goal: string) => post<GeneratedDrill>("/drills/dynamic", { goal }),
 
   // Fire-and-forget pageview ping. Never throws; never blocks the UI.
   track: (path: string, session: string, referrer?: string | null) => {

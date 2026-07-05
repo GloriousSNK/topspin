@@ -11,6 +11,9 @@ generator, and so a player can also request a workout by goal/level directly.
 
 from __future__ import annotations
 
+import json
+import os
+import urllib.request
 from dataclasses import dataclass, asdict
 
 # --- Drill catalogue -------------------------------------------------------
@@ -374,6 +377,121 @@ def generate_by_goal(goal: str, level: str = "intermediate", max_minutes: int = 
         drills=[asdict(d) for d in session],
         notes="Warm up 5 min. Track makes/misses to measure progress over weeks.",
     )
+
+
+# --- Dynamic drill from a free-text goal -----------------------------------
+# Rule-based (free, no keys, always works). Upgrades to a real free AI model
+# (Google Gemini) automatically if GEMINI_API_KEY is set.
+
+_GOAL_RULES = [
+    (("serve", "ace", "first serve", "second serve"), "serve", "Serve targets & rhythm",
+     ["Shadow the full motion 5x, feeling the leg drive and reach.",
+      "Serve 10 balls to the T, then 10 wide — count makes.",
+      "Add a target cone in each corner and hit 3 sets of 8."], "Toss consistent, reach up at contact."),
+    (("volley", "net", "doubles"), "volley", "Punch-volley control",
+     ["Wall or feeder: 20 firm-wrist punch volleys, no backswing.",
+      "Alternate forehand/backhand volley, meeting the ball out front.",
+      "Approach, split-step, and close for 3 sets of 10."], "Short and firm, contact in front."),
+    (("backhand", "two-hand", "one-hand"), "technique", "Backhand groove",
+     ["Shadow 10 unit turns, racquet set early.",
+      "Feed 20 backhands low-to-high, finishing over the shoulder.",
+      "Cross-court then down-the-line targets, 3 sets of 12."], "Turn early, drive through the ball."),
+    (("forehand", "fh"), "technique", "Forehand groove",
+     ["Shadow 10 unit turns and finishes.",
+      "Feed 20 forehands, brushing up for topspin.",
+      "Cross-court depth targets, 3 sets of 12."], "Load the legs, finish high."),
+    (("spin", "topspin", "slice", "kick"), "technique", "Spin windows",
+     ["Feed 15 balls low-to-high, exaggerating the brush.",
+      "Aim 1–1.5 m over the net into a deep zone.",
+      "Alternate topspin and slice for 3 sets of 12."], "Racquet-head speed low to high."),
+    (("consistency", "rally", "control", "keep it in", "unforced"), "consistency", "Consistency ladder",
+     ["Cross-court rally, count your longest streak.",
+      "Reset after any miss; target 20 in a row.",
+      "Down-the-line targets, 3 sets of 15."], "Big margin over the net, quality over pace."),
+    (("footwork", "movement", "speed", "agility", "quick"), "footwork", "Movement circuit",
+     ["Split-step reaction starts, 10 explosive first steps.",
+      "Lateral shuffles wide-to-wide, staying low.",
+      "Hit-and-recover to centre, 3 sets of 12."], "Small adjust steps, recover every ball."),
+    (("power", "pace", "harder", "faster"), "power", "Power development",
+     ["Med-ball rotational throws, 3 sets of 10.",
+      "Load-and-drive step-ins on the forehand.",
+      "Swing full-speed on 3 sets of 10, keep it in."], "Coil then uncoil, drive off the ground."),
+    (("return", "returning"), "timing", "Return sharpening",
+     ["Split-step on the toss, short compact backswing.",
+      "Block deep cross-court, 3 sets of 10.",
+      "Step in and take the next ball early."], "Read early, keep the return simple and deep."),
+    (("fitness", "endurance", "stamina", "cardio"), "fitness", "On-court fitness",
+     ["Baseline-to-net sprints, 8 reps.",
+      "Shadow swings at tempo, 3 sets of 20.",
+      "Suicides / spider runs, 4 rounds."], "Recover fast between reps."),
+]
+
+
+def _clean_drill(d: dict, goal: str) -> dict:
+    intensity = str(d.get("intensity", "medium")).lower()
+    if intensity not in INTENSITY_MINUTES:
+        intensity = "medium"
+    steps = d.get("steps") or []
+    steps = [str(s)[:160] for s in steps][:6]
+    return {
+        "name": str(d.get("name") or "Custom drill")[:80],
+        "focus": str(d.get("focus") or "")[:200],
+        "category": str(d.get("category") or "custom")[:24],
+        "intensity": intensity,
+        "sets": max(1, min(int(d.get("sets", 3) or 3), 10)),
+        "reps": max(1, min(int(d.get("reps", 15) or 15), 60)),
+        "steps": steps,
+        "goal": str(goal)[:200],
+    }
+
+
+def dynamic_drill(goal: str) -> dict:
+    """Rule-based drill from a free-text goal. Always available, no keys."""
+    g = (goal or "").lower()
+    for keywords, category, name, steps, cue in _GOAL_RULES:
+        if any(k in g for k in keywords):
+            return _clean_drill({
+                "name": name, "category": category, "intensity": "medium",
+                "sets": 3, "reps": 15, "steps": steps, "focus": cue,
+            }, goal)
+    # generic all-round
+    return _clean_drill({
+        "name": "All-round tune-up", "category": "consistency", "intensity": "medium",
+        "sets": 3, "reps": 15, "focus": "Balanced work toward: " + (goal or "your game") + ".",
+        "steps": ["Warm up with 20 controlled cross-court rallies.",
+                  "Footwork: split-step starts and recoveries, 3 sets of 10.",
+                  "Target practice into the deep corners, 3 sets of 12."],
+    }, goal)
+
+
+def _gemini_drill(goal: str, key: str) -> dict:
+    prompt = (
+        "You are a tennis coach. Generate ONE practice drill for this player goal, "
+        "as strict JSON with keys: name (string), focus (string, one coaching sentence), "
+        "category (one word), intensity ('low'|'medium'|'high'), sets (int), reps (int), "
+        "steps (array of 3-4 short instruction strings). No markdown, JSON only.\n"
+        f"Goal: {goal}"
+    )
+    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    resp = json.loads(urllib.request.urlopen(req, timeout=15).read())
+    text = resp["candidates"][0]["content"]["parts"][0]["text"].strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        text = text[4:] if text.lower().startswith("json") else text
+    return _clean_drill(json.loads(text), goal)
+
+
+def generate_drill(goal: str) -> dict:
+    """AI-generated drill if a free Gemini key is configured; else rule-based."""
+    key = os.getenv("GEMINI_API_KEY")
+    if key:
+        try:
+            return _gemini_drill(goal, key)
+        except Exception:
+            pass
+    return dynamic_drill(goal)
 
 
 def _prescribe(drill: dict, sets: int, flaw: dict | None, priority_base: float) -> PrescribedDrill:

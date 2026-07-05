@@ -4,7 +4,7 @@
 
 import { supabase } from "./supabase";
 import type { PoseAnalysis } from "./pose";
-import type { Workout } from "./types";
+import type { Workout, GeneratedDrill } from "./types";
 
 export interface SessionRow {
   id: string;
@@ -66,4 +66,29 @@ export async function getShare(id: string): Promise<SharePayload | null> {
   if (!supabase) return null;
   const { data } = await supabase.from("shares").select("payload").eq("id", id).single();
   return (data?.payload as SharePayload) ?? null;
+}
+
+// --- saved custom (AI-generated) drills ------------------------------------
+export interface CustomDrillRow {
+  id: string;
+  created_at: string;
+  drill: GeneratedDrill;
+}
+
+export async function saveCustomDrill(drill: GeneratedDrill): Promise<boolean> {
+  if (!supabase) return false;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return false;
+  const { error } = await supabase.from("custom_drills").insert({ user_id: data.user.id, drill });
+  return !error;
+}
+
+export async function getCustomDrills(limit = 30): Promise<CustomDrillRow[]> {
+  if (!supabase) return [];
+  const { data } = await supabase
+    .from("custom_drills")
+    .select("id, created_at, drill")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data as CustomDrillRow[]) ?? [];
 }

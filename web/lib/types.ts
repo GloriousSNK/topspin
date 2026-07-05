@@ -129,6 +129,17 @@ export interface CatalogueDrill {
   default_reps: number;
 }
 
+export interface GeneratedDrill {
+  name: string;
+  focus: string;
+  category: string;
+  intensity: string;
+  sets: number;
+  reps: number;
+  steps: string[];
+  goal: string;
+}
+
 export interface TrafficStats {
   videos_analyzed: number;
   practice_sessions: number;

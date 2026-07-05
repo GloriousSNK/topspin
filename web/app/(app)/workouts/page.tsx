@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Workout, CatalogueDrill } from "@/lib/types";
+import type { Workout, CatalogueDrill, GeneratedDrill } from "@/lib/types";
+import { useAuth } from "@/components/AuthProvider";
+import { saveCustomDrill } from "@/lib/history";
 
 const GOALS = ["all_round", "consistency", "power", "footwork", "serve", "volley"];
 const LEVELS = ["beginner", "intermediate", "advanced"];
 
 export default function Workouts() {
+  const { user } = useAuth();
   const [goal, setGoal] = useState("all_round");
   const [level, setLevel] = useState("intermediate");
   const [minutes, setMinutes] = useState(45);
@@ -15,6 +18,12 @@ export default function Workouts() {
   const [catalogue, setCatalogue] = useState<CatalogueDrill[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // dynamic (goal → generated drill)
+  const [goalText, setGoalText] = useState("");
+  const [gen, setGen] = useState<GeneratedDrill | null>(null);
+  const [genBusy, setGenBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     api.catalogue().then((r) => setCatalogue(r.drills)).catch((e) => setErr(String(e)));
@@ -29,6 +38,25 @@ export default function Workouts() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function generateDynamic(e: React.FormEvent) {
+    e.preventDefault();
+    if (!goalText.trim()) return;
+    setGenBusy(true); setErr(null); setSaved(false);
+    try {
+      setGen(await api.generateDrill(goalText.trim()));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setGenBusy(false);
+    }
+  }
+
+  async function saveGen() {
+    if (!gen) return;
+    const ok = await saveCustomDrill(gen);
+    setSaved(ok);
   }
 
   return (
@@ -62,6 +90,43 @@ export default function Workouts() {
           </button>
         </div>
         {err && <div style={{ color: "var(--danger)", marginTop: 12, fontSize: 13 }}>{err}</div>}
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div className="card-title">Describe your goal · get a drill</div>
+        <form onSubmit={generateDynamic} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <input className="select" style={{ flex: 1, minWidth: 240, textTransform: "none" }}
+            placeholder="e.g. more topspin on my backhand, or a faster serve"
+            value={goalText} onChange={(e) => setGoalText(e.target.value)} maxLength={200} />
+          <button className="btn" disabled={genBusy}>{genBusy ? "Thinking…" : "Generate a drill"}</button>
+        </form>
+
+        {gen && (
+          <div className="subcard" style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <strong style={{ fontSize: 16 }}>{gen.name}</strong>
+              <div style={{ display: "flex", gap: 6 }}>
+                <span className="pill">{gen.sets} × {gen.reps}</span>
+                <span className="pill">{gen.intensity}</span>
+              </div>
+            </div>
+            {gen.focus && <p style={{ color: "var(--ink-soft)", fontSize: 14, margin: "6px 0 10px" }}>{gen.focus}</p>}
+            <ol style={{ paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6, fontSize: 14 }}>
+              {gen.steps.map((s, i) => <li key={i}>{s}</li>)}
+            </ol>
+            <div style={{ marginTop: 12 }}>
+              {user ? (
+                <button className="btn btn-ghost" onClick={saveGen} disabled={saved}>
+                  {saved ? "✓ Saved to your account" : "Save this drill"}
+                </button>
+              ) : (
+                <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+                  <a href="/account" style={{ color: "var(--court)", fontWeight: 600 }}>Sign in</a> to save drills to your account.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {workout && (
