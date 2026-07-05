@@ -24,19 +24,31 @@ export default function Account() {
   const [count, setCount] = useState<number | null>(null);
   const [isPublic, setIsPublic] = useState(false);
   const [displayName, setDisplayName] = useState("");
+  const [utr, setUtr] = useState("");
+  const [usta, setUsta] = useState("");
   const [savedProfile, setSavedProfile] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     getSessions(200).then((r) => setCount(r.length));
-    getMyProfile().then((p) => { if (p) { setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); } });
+    getMyProfile().then((p) => {
+      if (p) { setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); setUtr(p.utr ?? ""); setUsta(p.usta ?? ""); }
+    });
   }, [user]);
 
   async function saveProfile(pub: boolean) {
     setIsPublic(pub);
-    await setMyProfile(pub, displayName);
+    await setMyProfile(pub, displayName, utr, usta);
     setSavedProfile(true);
     setTimeout(() => setSavedProfile(false), 1500);
+  }
+
+  function copyProfileLink() {
+    if (!user) return;
+    navigator.clipboard?.writeText(`${window.location.origin}/u/${user.id}`);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 1500);
   }
 
   async function submit(e: React.FormEvent) {
@@ -90,23 +102,34 @@ export default function Account() {
             Make your progress shareable and anyone with the link can see your form trend and stats
             (never your email). Turn it off any time.
           </p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
             <div>
-              <label className="label" htmlFor="dname">Display name (optional)</label>
+              <label className="label" htmlFor="dname">Display name</label>
               <input id="dname" className="select" style={{ textTransform: "none" }} value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)} maxLength={40} placeholder="e.g. Alex" />
             </div>
-            <button className={`btn ${isPublic ? "btn-ghost" : ""}`} onClick={() => saveProfile(!isPublic)}>
-              {isPublic ? "Make private" : "Make profile public"}
-            </button>
+            <div>
+              <label className="label" htmlFor="utr">UTR</label>
+              <input id="utr" className="select" style={{ width: 90, textTransform: "none" }} value={utr}
+                onChange={(e) => setUtr(e.target.value)} maxLength={5} placeholder="e.g. 6.5" />
+            </div>
+            <div>
+              <label className="label" htmlFor="usta">USTA / NTRP</label>
+              <input id="usta" className="select" style={{ width: 90, textTransform: "none" }} value={usta}
+                onChange={(e) => setUsta(e.target.value)} maxLength={5} placeholder="e.g. 4.0" />
+            </div>
+            <button className="btn btn-ghost" onClick={() => saveProfile(isPublic)}>Save details</button>
             {savedProfile && <span style={{ color: "var(--good)", fontSize: 13 }}>✓ Saved</span>}
           </div>
+          <button className={`btn ${isPublic ? "btn-ghost" : ""}`} onClick={() => saveProfile(!isPublic)} style={{ marginBottom: 12 }}>
+            {isPublic ? "Make profile private" : "Make profile public"}
+          </button>
           {isPublic && (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <input className="select" style={{ flex: 1, minWidth: 240, textTransform: "none" }} readOnly
                 value={`${typeof window !== "undefined" ? window.location.origin : ""}/u/${user.id}`}
                 onFocus={(e) => e.target.select()} />
-              <button className="btn btn-ghost" onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/u/${user.id}`)}>Copy link</button>
+              <button className="btn btn-ghost" onClick={copyProfileLink}>{linkCopied ? "Copied!" : "Copy link"}</button>
               <a className="btn" href={`/u/${user.id}`} target="_blank" rel="noreferrer">View</a>
             </div>
           )}

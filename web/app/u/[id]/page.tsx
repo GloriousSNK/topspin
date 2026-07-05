@@ -48,16 +48,30 @@ export default function PublicProfile({ params }: { params: Promise<{ id: string
         <Link href="/analyze" className="btn">Try it yourself</Link>
       </div>
 
-      <span className="eyebrow">Player profile</span>
-      <h1 style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: "clamp(30px,5vw,44px)", fontWeight: 600, marginBottom: 20 }}>
-        {profile?.display_name || "A TopSpin player"}
-      </h1>
+      {/* player card */}
+      <div className="card" style={{ marginBottom: 18, display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ width: 68, height: 68, borderRadius: 18, background: "var(--accent)", border: "2px solid var(--ink)",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, fontWeight: 800, flexShrink: 0 }}>
+          {(profile?.display_name || "P").charAt(0).toUpperCase()}
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>Player profile</div>
+          <div style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: "clamp(26px,4vw,36px)", fontWeight: 600, lineHeight: 1.1 }}>
+            {profile?.display_name || "A TopSpin player"}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+            {profile?.utr && <span className="pill accent">UTR {profile.utr}</span>}
+            {profile?.usta && <span className="pill">USTA/NTRP {profile.usta}</span>}
+            <span className="pill">{stats.count} {stats.count === 1 ? "analysis" : "analyses"}</span>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-4" style={{ marginBottom: 18 }}>
-        <Stat v={stats.count} l="Analyses" />
         <Stat v={stats.avg} l="Average form" accent />
         <Stat v={stats.best} l="Best form" />
         <Stat v={stats.topServe ? `${stats.topServe}` : "—"} l="Top serve (km/h)" />
+        <Stat v={stats.count} l="Sessions" />
       </div>
 
       {stats.scored.length >= 2 && (

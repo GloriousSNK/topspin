@@ -1,13 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import type { Workout, CatalogueDrill, GeneratedDrill } from "@/lib/types";
+import type { Workout, CatalogueDrill } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
-import { saveCustomDrill } from "@/lib/history";
+import { saveCustomDrill, saveWorkout } from "@/lib/history";
 
 const GOALS = ["all_round", "consistency", "power", "footwork", "serve", "volley"];
 const LEVELS = ["beginner", "intermediate", "advanced"];
+
+// Rank a catalogue drill against the search terms — simple text similarity.
+function scoreDrill(d: CatalogueDrill, terms: string[]): number {
+  const hay = `${d.name} ${d.focus} ${d.category} ${d.equipment} ${(d.addresses || []).join(" ")}`.toLowerCase();
+  const words = hay.split(/\W+/);
+  let score = 0;
+  for (const t of terms) {
+    if (hay.includes(t)) score += 3;
+    else if (words.some((w) => w.length > 2 && (w.startsWith(t) || t.startsWith(w)))) score += 1;
+  }
+  return score;
+}
 
 export default function Workouts() {
   const { user } = useAuth();
@@ -19,18 +31,27 @@ export default function Workouts() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // dynamic (goal → generated drill)
-  const [goalText, setGoalText] = useState("");
-  const [gen, setGen] = useState<GeneratedDrill | null>(null);
-  const [genBusy, setGenBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [query, setQuery] = useState("");
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [workoutSaved, setWorkoutSaved] = useState(false);
 
   useEffect(() => {
     api.catalogue().then((r) => setCatalogue(r.drills)).catch((e) => setErr(String(e)));
   }, []);
 
+  const results = useMemo(() => {
+    const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+    if (!terms.length) return [];
+    return catalogue
+      .map((d) => ({ d, s: scoreDrill(d, terms) }))
+      .filter((x) => x.s > 0)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 6)
+      .map((x) => x.d);
+  }, [query, catalogue]);
+
   async function generate() {
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setWorkoutSaved(false);
     try {
       setWorkout(await api.workoutByGoal(goal, level, minutes));
     } catch (e) {
@@ -40,23 +61,17 @@ export default function Workouts() {
     }
   }
 
-  async function generateDynamic(e: React.FormEvent) {
-    e.preventDefault();
-    if (!goalText.trim()) return;
-    setGenBusy(true); setErr(null); setSaved(false);
-    try {
-      setGen(await api.generateDrill(goalText.trim()));
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setGenBusy(false);
-    }
+  async function saveDrill(d: CatalogueDrill) {
+    const ok = await saveCustomDrill({
+      name: d.name, focus: d.focus, category: d.category, intensity: d.intensity,
+      sets: d.default_sets, reps: d.default_reps, steps: [], goal: query,
+    });
+    if (ok) setSavedIds((prev) => new Set(prev).add(d.id));
   }
 
-  async function saveGen() {
-    if (!gen) return;
-    const ok = await saveCustomDrill(gen);
-    setSaved(ok);
+  async function saveGoalWorkout() {
+    if (!workout) return;
+    setWorkoutSaved(await saveWorkout(workout));
   }
 
   return (
@@ -93,45 +108,49 @@ export default function Workouts() {
       </div>
 
       <div className="card" style={{ marginBottom: 18 }}>
-        <div className="card-title">Describe your goal · get a drill</div>
-        <form onSubmit={generateDynamic} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <input className="select" style={{ flex: 1, minWidth: 240, textTransform: "none" }}
-            placeholder="e.g. more topspin on my backhand, or a faster serve"
-            value={goalText} onChange={(e) => setGoalText(e.target.value)} maxLength={200} />
-          <button className="btn" disabled={genBusy}>{genBusy ? "Thinking…" : "Generate a drill"}</button>
-        </form>
-
-        {gen && (
-          <div className="subcard" style={{ marginTop: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <strong style={{ fontSize: 16 }}>{gen.name}</strong>
-              <div style={{ display: "flex", gap: 6 }}>
-                <span className="pill">{gen.sets} × {gen.reps}</span>
-                <span className="pill">{gen.intensity}</span>
+        <div className="card-title">Search drills</div>
+        <input className="select" style={{ width: "100%", textTransform: "none" }}
+          placeholder="Search by shot, skill or word — e.g. backhand, topspin, footwork, volley"
+          value={query} onChange={(e) => setQuery(e.target.value)} maxLength={100} />
+        {query.trim() && (
+          <div className="grid grid-2" style={{ marginTop: 14 }}>
+            {results.length === 0 ? (
+              <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>No drills match that. Try a shot or skill word.</p>
+            ) : results.map((d) => (
+              <div key={d.id} className="subcard">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <strong>{d.name}</strong>
+                  <span className="tag">{d.category}</span>
+                </div>
+                <div style={{ color: "var(--ink-soft)", fontSize: 13, margin: "5px 0 8px" }}>{d.focus}</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                  <span className="pill">{d.default_sets} × {d.default_reps}</span>
+                  <span className="pill">{d.intensity}</span>
+                  {user && (
+                    <button className="btn btn-ghost" style={{ marginLeft: "auto", padding: "5px 12px", fontSize: 12 }}
+                      onClick={() => saveDrill(d)} disabled={savedIds.has(d.id)}>
+                      {savedIds.has(d.id) ? "✓ Saved" : "Save"}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-            {gen.focus && <p style={{ color: "var(--ink-soft)", fontSize: 14, margin: "6px 0 10px" }}>{gen.focus}</p>}
-            <ol style={{ paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6, fontSize: 14 }}>
-              {gen.steps.map((s, i) => <li key={i}>{s}</li>)}
-            </ol>
-            <div style={{ marginTop: 12 }}>
-              {user ? (
-                <button className="btn btn-ghost" onClick={saveGen} disabled={saved}>
-                  {saved ? "✓ Saved to your account" : "Save this drill"}
-                </button>
-              ) : (
-                <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
-                  <a href="/account" style={{ color: "var(--court)", fontWeight: 600 }}>Sign in</a> to save drills to your account.
-                </span>
-              )}
-            </div>
+            ))}
           </div>
         )}
       </div>
 
       {workout && (
         <div className="card" style={{ marginBottom: 18 }}>
-          <div className="card-title">{workout.title} · {workout.total_minutes} min · {workout.level}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
+            <div className="card-title" style={{ marginBottom: 0 }}>{workout.title} · {workout.total_minutes} min · {workout.level}</div>
+            {user ? (
+              <button className="btn btn-ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={saveGoalWorkout} disabled={workoutSaved}>
+                {workoutSaved ? "✓ Saved" : "Save workout"}
+              </button>
+            ) : (
+              <a href="/account" style={{ fontSize: 12, color: "var(--court)", fontWeight: 600 }}>Sign in to save</a>
+            )}
+          </div>
           <div className="grid grid-2">
             {workout.drills.map((d) => (
               <div key={d.id} className="subcard">
@@ -148,7 +167,7 @@ export default function Workouts() {
               </div>
             ))}
           </div>
-          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 14 }}>{workout.notes}</p>
+          <p style={{ color: "var(--ink-soft)", fontSize: 13, marginTop: 14 }}>{workout.notes}</p>
         </div>
       )}
 

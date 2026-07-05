@@ -83,6 +83,16 @@ export async function saveCustomDrill(drill: GeneratedDrill): Promise<boolean> {
   return !error;
 }
 
+export async function saveWorkout(workout: Workout): Promise<boolean> {
+  if (!supabase) return false;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return false;
+  const { error } = await supabase.from("custom_drills").insert({
+    user_id: data.user.id, drill: { kind: "workout", ...workout },
+  });
+  return !error;
+}
+
 export async function getCustomDrills(limit = 30): Promise<CustomDrillRow[]> {
   if (!supabase) return [];
   const { data } = await supabase
@@ -98,6 +108,8 @@ export interface Profile {
   user_id: string;
   is_public: boolean;
   display_name: string | null;
+  utr: string | null;
+  usta: string | null;
 }
 
 export async function getMyProfile(): Promise<Profile | null> {
@@ -108,12 +120,18 @@ export async function getMyProfile(): Promise<Profile | null> {
   return (p as Profile) ?? null;
 }
 
-export async function setMyProfile(isPublic: boolean, displayName: string): Promise<boolean> {
+export async function setMyProfile(
+  isPublic: boolean, displayName: string, utr = "", usta = "",
+): Promise<boolean> {
   if (!supabase) return false;
   const { data } = await supabase.auth.getUser();
   if (!data.user) return false;
   const { error } = await supabase.from("profiles").upsert({
-    user_id: data.user.id, is_public: isPublic, display_name: displayName || null,
+    user_id: data.user.id,
+    is_public: isPublic,
+    display_name: displayName || null,
+    utr: utr || null,
+    usta: usta || null,
   });
   return !error;
 }
