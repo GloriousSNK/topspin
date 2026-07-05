@@ -34,6 +34,7 @@ export default function Workouts() {
   const [query, setQuery] = useState("");
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [workoutSaved, setWorkoutSaved] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     api.catalogue().then((r) => setCatalogue(r.drills)).catch((e) => setErr(String(e)));
@@ -66,12 +67,21 @@ export default function Workouts() {
       name: d.name, focus: d.focus, category: d.category, intensity: d.intensity,
       sets: d.default_sets, reps: d.default_reps, steps: [], goal: query,
     });
-    if (ok) setSavedIds((prev) => new Set(prev).add(d.id));
+    if (ok) {
+      setSavedIds((prev) => new Set(prev).add(d.id));
+      setSaveMsg({ ok: true, text: "Saved to your Stats page." });
+    } else {
+      setSaveMsg({ ok: false, text: "Couldn't save — make sure you're signed in and try again." });
+    }
   }
 
   async function saveGoalWorkout() {
     if (!workout) return;
-    setWorkoutSaved(await saveWorkout(workout));
+    const ok = await saveWorkout(workout);
+    setWorkoutSaved(ok);
+    setSaveMsg(ok
+      ? { ok: true, text: "Workout saved to your Stats page." }
+      : { ok: false, text: "Couldn't save — make sure you're signed in and try again." });
   }
 
   return (
@@ -106,6 +116,17 @@ export default function Workouts() {
         </div>
         {err && <div style={{ color: "var(--danger)", marginTop: 12, fontSize: 13 }}>{err}</div>}
       </div>
+
+      {saveMsg && (
+        <div className="card" style={{ marginBottom: 18, borderColor: saveMsg.ok ? "var(--good)" : "var(--danger)" }}>
+          <span style={{ color: saveMsg.ok ? "var(--good)" : "var(--danger)", fontWeight: 600, fontSize: 14 }}>
+            {saveMsg.ok ? "✓ " : "⚠ "}{saveMsg.text}
+          </span>
+          {saveMsg.ok && (
+            <a href="/stats" style={{ marginLeft: 10, color: "var(--court)", fontWeight: 600, fontSize: 14 }}>View in Stats →</a>
+          )}
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 18 }}>
         <div className="card-title">Search drills</div>

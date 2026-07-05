@@ -135,7 +135,7 @@ export default function Analyze() {
         <>
           {user ? (
             <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
-              ✓ Saved to your history. <a href="/progress" style={{ color: "var(--court)", fontWeight: 600 }}>See your progress →</a>
+              ✓ Saved to your history. <a href="/stats" style={{ color: "var(--court)", fontWeight: 600 }}>See your stats →</a>
             </div>
           ) : enabled ? (
             <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>

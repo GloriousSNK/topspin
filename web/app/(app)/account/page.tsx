@@ -92,7 +92,7 @@ export default function Account() {
 
         <div className="grid grid-3" style={{ marginBottom: 18 }}>
           <QuickCard href="/analyze" title="Analyse a clip" desc="Upload a stroke and get a fresh read." />
-          <QuickCard href="/progress" title="View progress" desc="Your form trend and history." />
+          <QuickCard href="/stats" title="View stats" desc="Your form trend, history and saved drills." />
           <QuickCard href="/workouts" title="Build a session" desc="Drills for what you're working on." />
         </div>
 
