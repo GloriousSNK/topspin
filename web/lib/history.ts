@@ -92,3 +92,40 @@ export async function getCustomDrills(limit = 30): Promise<CustomDrillRow[]> {
     .limit(limit);
   return (data as CustomDrillRow[]) ?? [];
 }
+
+// --- public profiles (share your progress) ---------------------------------
+export interface Profile {
+  user_id: string;
+  is_public: boolean;
+  display_name: string | null;
+}
+
+export async function getMyProfile(): Promise<Profile | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return null;
+  const { data: p } = await supabase.from("profiles").select("*").eq("user_id", data.user.id).maybeSingle();
+  return (p as Profile) ?? null;
+}
+
+export async function setMyProfile(isPublic: boolean, displayName: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return false;
+  const { error } = await supabase.from("profiles").upsert({
+    user_id: data.user.id, is_public: isPublic, display_name: displayName || null,
+  });
+  return !error;
+}
+
+// Public read of another player's profile + sessions (RLS gates by is_public).
+export async function getPublicProfile(userId: string): Promise<{ profile: Profile | null; sessions: SessionRow[] }> {
+  if (!supabase) return { profile: null, sessions: [] };
+  const { data: p } = await supabase
+    .from("profiles").select("*").eq("user_id", userId).eq("is_public", true).maybeSingle();
+  if (!p) return { profile: null, sessions: [] };
+  const { data: s } = await supabase
+    .from("sessions").select("*").eq("user_id", userId)
+    .order("created_at", { ascending: false }).limit(200);
+  return { profile: p as Profile, sessions: (s as SessionRow[]) ?? [] };
+}

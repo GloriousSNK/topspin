@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { getSessions } from "@/lib/history";
+import { getSessions, getMyProfile, setMyProfile } from "@/lib/history";
 
 const PERKS = [
   ["Save every analysis", "Your form scores and flaws are kept, so you can look back."],
@@ -22,10 +22,22 @@ export default function Account() {
   const [msg, setMsg] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [count, setCount] = useState<number | null>(null);
+  const [isPublic, setIsPublic] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [savedProfile, setSavedProfile] = useState(false);
 
   useEffect(() => {
-    if (user) getSessions(200).then((r) => setCount(r.length));
+    if (!user) return;
+    getSessions(200).then((r) => setCount(r.length));
+    getMyProfile().then((p) => { if (p) { setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); } });
   }, [user]);
+
+  async function saveProfile(pub: boolean) {
+    setIsPublic(pub);
+    await setMyProfile(pub, displayName);
+    setSavedProfile(true);
+    setTimeout(() => setSavedProfile(false), 1500);
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,6 +82,34 @@ export default function Account() {
           <QuickCard href="/analyze" title="Analyse a clip" desc="Upload a stroke and get a fresh read." />
           <QuickCard href="/progress" title="View progress" desc="Your form trend and history." />
           <QuickCard href="/workouts" title="Build a session" desc="Drills for what you're working on." />
+        </div>
+
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div className="card-title">Public profile</div>
+          <p style={{ color: "var(--ink-soft)", fontSize: 14, marginBottom: 12 }}>
+            Make your progress shareable and anyone with the link can see your form trend and stats
+            (never your email). Turn it off any time.
+          </p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+            <div>
+              <label className="label" htmlFor="dname">Display name (optional)</label>
+              <input id="dname" className="select" style={{ textTransform: "none" }} value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)} maxLength={40} placeholder="e.g. Alex" />
+            </div>
+            <button className={`btn ${isPublic ? "btn-ghost" : ""}`} onClick={() => saveProfile(!isPublic)}>
+              {isPublic ? "Make private" : "Make profile public"}
+            </button>
+            {savedProfile && <span style={{ color: "var(--good)", fontSize: 13 }}>✓ Saved</span>}
+          </div>
+          {isPublic && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input className="select" style={{ flex: 1, minWidth: 240, textTransform: "none" }} readOnly
+                value={`${typeof window !== "undefined" ? window.location.origin : ""}/u/${user.id}`}
+                onFocus={(e) => e.target.select()} />
+              <button className="btn btn-ghost" onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/u/${user.id}`)}>Copy link</button>
+              <a className="btn" href={`/u/${user.id}`} target="_blank" rel="noreferrer">View</a>
+            </div>
+          )}
         </div>
 
         <div className="card">
