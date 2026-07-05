@@ -187,6 +187,14 @@ a:hover .card { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--in
 .pill.off    { background: var(--danger); color: #fff; }
 .pill.accent { background: var(--accent); color: var(--ink); }
 
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; font-size: 13px; line-height: 1;
+  background: var(--card); color: var(--ink); border: 2px solid var(--ink);
+  border-radius: 8px; cursor: pointer; flex-shrink: 0;
+}
+.icon-btn:hover { background: var(--paper-2); }
+
 .label { font-size: 12px; color: var(--ink-soft); display: block; margin-bottom: 6px; font-weight: 600; }
 .range { width: 100%; accent-color: var(--court); }
 .field-val { color: var(--ink); font-weight: 700; }

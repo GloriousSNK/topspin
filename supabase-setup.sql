@@ -49,9 +49,11 @@ alter table public.custom_drills enable row level security;
 
 drop policy if exists "own drills read"   on public.custom_drills;
 drop policy if exists "own drills write"  on public.custom_drills;
+drop policy if exists "own drills update" on public.custom_drills;
 drop policy if exists "own drills delete" on public.custom_drills;
 create policy "own drills read"   on public.custom_drills for select using (auth.uid() = user_id);
 create policy "own drills write"  on public.custom_drills for insert with check (auth.uid() = user_id);
+create policy "own drills update" on public.custom_drills for update using (auth.uid() = user_id);
 create policy "own drills delete" on public.custom_drills for delete using (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------

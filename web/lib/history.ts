@@ -103,6 +103,29 @@ export async function getCustomDrills(limit = 30): Promise<CustomDrillRow[]> {
   return (data as CustomDrillRow[]) ?? [];
 }
 
+export async function deleteCustomDrill(id: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return false;
+  const { error } = await supabase.from("custom_drills").delete().eq("id", id).eq("user_id", data.user.id);
+  return !error;
+}
+
+// Rename a saved workout/drill by patching the title/name inside the jsonb.
+export async function renameCustomDrill(id: string, title: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return false;
+  const { data: existing } = await supabase
+    .from("custom_drills").select("drill").eq("id", id).eq("user_id", data.user.id).maybeSingle();
+  if (!existing) return false;
+  const drill = existing.drill as Record<string, unknown>;
+  const next = drill.kind === "workout" ? { ...drill, title } : { ...drill, name: title };
+  const { error } = await supabase
+    .from("custom_drills").update({ drill: next }).eq("id", id).eq("user_id", data.user.id);
+  return !error;
+}
+
 // --- public profiles (share your progress) ---------------------------------
 export interface Profile {
   user_id: string;
