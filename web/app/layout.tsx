@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    siteName: SITE_NAME,
+    siteName: ORG_NAME, // what Google shows as the site name in results
     url: SITE_URL,
     title: "TopSpin · The physics of a better game",
     description: SITE_DESCRIPTION,
@@ -80,7 +80,8 @@ const jsonLd = [
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: SITE_NAME,
+    name: ORG_NAME, // primary signal for the site name in Google results
+    alternateName: SITE_NAME,
     url: SITE_URL,
     publisher: { "@type": "Organization", name: ORG_NAME },
   },

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy — TopSpin",
+  title: "Privacy",
   description: "What TopSpin collects (very little), what it never collects, and why.",
 };
 
