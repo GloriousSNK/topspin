@@ -69,7 +69,12 @@ export default function Account() {
     setCount(0);
   }
 
-  if (!enabled) return <Bare title="Account" body="Accounts aren't set up on this deployment yet." />;
+  if (!enabled) return (
+    <Bare
+      title="Account"
+      body="Accounts aren't connected on this copy of the app. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to web/.env.local (from your Supabase project's Settings → API), restart the dev server, and sign-in will light up."
+    />
+  );
   if (loading) return <h1 className="h1">Account</h1>;
 
   // ---- signed in ----
@@ -77,11 +82,12 @@ export default function Account() {
     const initial = (user.email ?? "?").charAt(0).toUpperCase();
     return (
       <div>
+        <span className="eyebrow">Your locker</span>
         <h1 className="h1">Your account</h1>
         <p className="lead">Everything you analyse is saved here so you can track it over time.</p>
 
         <div className="card" style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <div style={{ width: 52, height: 52, borderRadius: 14, background: "var(--accent)", border: "2px solid var(--ink)",
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: "var(--accent)", border: "1px solid rgba(29,34,27,0.35)",
             display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 800, flexShrink: 0 }}>{initial}</div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <div style={{ fontWeight: 700, fontSize: 16 }}>{user.email}</div>
@@ -153,6 +159,7 @@ export default function Account() {
   // ---- signed out ----
   return (
     <div>
+      <span className="eyebrow">Members</span>
       <h1 className="h1">{mode === "in" ? "Welcome back" : "Create your account"}</h1>
       <p className="lead">It&apos;s free, takes a few seconds, and keeps your progress in one place.</p>
 

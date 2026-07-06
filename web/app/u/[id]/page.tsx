@@ -50,7 +50,7 @@ export default function PublicProfile({ params }: { params: Promise<{ id: string
 
       {/* player card */}
       <div className="card" style={{ marginBottom: 18, display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ width: 68, height: 68, borderRadius: 18, background: "var(--accent)", border: "2px solid var(--ink)",
+        <div style={{ width: 68, height: 68, borderRadius: 18, background: "var(--accent)", border: "1px solid rgba(29,34,27,0.35)",
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, fontWeight: 800, flexShrink: 0 }}>
           {(profile?.display_name || "P").charAt(0).toUpperCase()}
         </div>
@@ -81,10 +81,10 @@ export default function PublicProfile({ params }: { params: Promise<{ id: string
             <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: 140, fontSize: 10, color: "var(--ink-soft)" }}>
               <span>100</span><span>50</span><span>0</span>
             </div>
-            <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: 5, height: 140, borderBottom: "2px solid var(--ink)" }}>
+            <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: 5, height: 140, borderBottom: "1px solid rgba(29,34,27,0.4)" }}>
               {stats.scored.map((r) => (
                 <div key={r.id} title={`${r.stroke} · ${r.form_score}/100`}
-                  style={{ flex: 1, minWidth: 3, height: `${Math.max(3, r.form_score)}%`, background: "var(--accent)", border: "2px solid var(--ink)", borderRadius: "5px 5px 0 0" }} />
+                  style={{ flex: 1, minWidth: 3, height: `${Math.max(3, r.form_score)}%`, background: "var(--accent)", border: "1px solid rgba(29,34,27,0.35)", borderRadius: "5px 5px 0 0" }} />
               ))}
             </div>
           </div>

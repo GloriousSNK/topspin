@@ -9,13 +9,13 @@ import { useAuth } from "./AuthProvider";
 // One nav for the whole site. Same on every page, so it never "changes".
 export default function TopNav() {
   const path = usePathname();
-  const { user, enabled } = useAuth();
+  const { user } = useAuth();
 
   const links = [
     { href: "/analyze", label: "Analyse" },
     { href: "/ball-lab", label: "Ball Lab" },
     { href: "/workouts", label: "Drills" },
-    ...(user ? [{ href: "/stats", label: "Stats" }] : []),
+    { href: "/stats", label: "Stats" },
     { href: "/learn", label: "Learn" },
   ];
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
@@ -24,7 +24,7 @@ export default function TopNav() {
     ...links,
     { href: "/insights", label: "Insights" },
     { href: "/about", label: "About" },
-    ...(enabled ? [{ href: "/account", label: user ? "Account" : "Sign in" }] : []),
+    { href: "/account", label: user ? "Account" : "Sign in" },
   ];
 
   const initial = (user?.email ?? "?").charAt(0).toUpperCase();
@@ -40,14 +40,14 @@ export default function TopNav() {
             ))}
           </nav>
           <span className="nav-spacer" />
-          {enabled && (user ? (
+          {user ? (
             <Link href="/account" className={`nav-account ${active("/account") ? "on" : ""}`}>
               <span className="nav-avatar">{initial}</span>
               <span className="nav-email">{user.email}</span>
             </Link>
           ) : (
             <Link href="/account" className="btn">Sign in</Link>
-          ))}
+          )}
           <MobileMenu links={mobileLinks} />
         </div>
       </div>

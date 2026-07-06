@@ -265,7 +265,7 @@ function Skeleton({ skeleton }: { skeleton: Record<string, [number, number]> }) 
   ];
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 280, height: "auto", margin: "0 auto", display: "block",
-      background: "var(--paper-2)", border: "2px solid var(--ink)", borderRadius: 12 }}>
+      background: "var(--paper-2)", border: "1px solid rgba(29,34,27,0.35)", borderRadius: 12 }}>
       {bones.map(([a, b], i) => {
         const pa = p(a), pb = p(b);
         if (!pa || !pb) return null;

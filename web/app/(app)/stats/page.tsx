@@ -61,7 +61,7 @@ export default function Stats() {
     } finally { setBusy(false); }
   }
 
-  if (!enabled) return <Msg title="Stats" body="Accounts aren't set up on this deployment yet." />;
+  if (!enabled) return <Msg title="Stats" body="Accounts aren't connected on this copy of the app — add the Supabase keys to web/.env.local to enable sign-in and saved stats." />;
   if (loading || load) return <h1 className="h1">Stats</h1>;
   if (!user) return <Msg title="Stats" body="Sign in to track your form and save drills." cta />;
 
@@ -85,12 +85,12 @@ export default function Stats() {
       ) : (
         <>
           {/* headline progress bar */}
-          <div className="card" style={{ marginBottom: 18 }}>
+          <div className="lp-panel lp-tick-b" style={{ marginBottom: 18, padding: 22 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-              <span style={{ fontWeight: 700 }}>Current form</span>
-              <span className="mono" style={{ color: "var(--court)", fontWeight: 800, fontSize: 20 }}>{recent}/100</span>
+              <span style={{ fontWeight: 650 }}>Current form</span>
+              <span className="mono" style={{ color: "var(--green)", fontWeight: 600, fontSize: 20 }}>{recent}/100</span>
             </div>
-            <div style={{ position: "relative", height: 16, background: "var(--paper-2)", border: "2px solid var(--ink)", borderRadius: 999, overflow: "hidden" }}>
+            <div style={{ position: "relative", height: 16, background: "var(--paper-2)", border: "1px solid var(--line)", borderRadius: 999, overflow: "hidden" }}>
               <div style={{ width: `${recent}%`, height: "100%", background: "var(--accent)" }} />
               {/* average marker */}
               {avg > 0 && (
@@ -111,20 +111,25 @@ export default function Stats() {
           </div>
 
           {chrono.length >= 2 && (
-            <div className="card" style={{ marginBottom: 18 }}>
-              <div className="card-title">Form score over time</div>
+            <div className="lp-panel" style={{ marginBottom: 18 }}>
+              <div className="lp-panel-head">
+                <span>Form score over time</span>
+                <span className="val">AVG {avg}</span>
+              </div>
+              <div style={{ padding: 18 }}>
               <div style={{ display: "flex", gap: 10 }}>
                 <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: 150, fontSize: 10, color: "var(--ink-soft)" }}>
                   <span>100</span><span>50</span><span>0</span>
                 </div>
-                <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: 6, height: 150, borderBottom: "2px solid var(--ink)", borderTop: "1px dashed var(--paper-2)" }}>
+                <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: 6, height: 150, borderBottom: "1px solid rgba(29,34,27,0.4)", borderTop: "1px dashed var(--line-soft)" }}>
                   {chrono.map((r) => (
                     <div key={r.id} title={`${r.stroke} · ${r.form_score}/100 · ${new Date(r.created_at).toLocaleDateString()}`}
-                      style={{ flex: 1, minWidth: 4, height: `${Math.max(3, r.form_score)}%`, background: "var(--accent)", border: "2px solid var(--ink)", borderRadius: "5px 5px 0 0" }} />
+                      style={{ flex: 1, minWidth: 4, height: `${Math.max(3, r.form_score)}%`, background: "var(--accent)", border: "1px solid rgba(29,34,27,0.35)", borderRadius: "5px 5px 0 0" }} />
                   ))}
                 </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--ink-soft)", marginTop: 6, marginLeft: 34 }}>
+              </div>
+              <div className="lp-panel-foot">
                 <span>{new Date(chrono[0].created_at).toLocaleDateString()}</span>
                 <span>{new Date(chrono[chrono.length - 1].created_at).toLocaleDateString()}</span>
               </div>

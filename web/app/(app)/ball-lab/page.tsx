@@ -126,39 +126,54 @@ export default function BallLab() {
                   value={pred.landing ? `${pred.landing[0].toFixed(1)} m` : "—"} />
               </div>
 
-              <div className="card">
-                <div className="card-title">Side view — trajectory (drag + Magnus)</div>
-                <SideView pred={pred} />
+              <div className="lp-panel">
+                <div className="lp-panel-head">
+                  <span>Side view · drag + Magnus</span>
+                  <span className="val" style={{ color: pred.landed_in ? "var(--good)" : "var(--danger)" }}>
+                    {pred.landed_in ? "IN" : pred.cleared_net ? "OUT" : "NET"}
+                  </span>
+                </div>
+                <div style={{ padding: 18 }}>
+                  <SideView pred={pred} />
+                </div>
               </div>
 
               <div className="grid grid-2">
-                <div className="card">
-                  <div className="card-title">Top-down — landing ensemble</div>
-                  <TopDown pred={pred} />
+                <div className="lp-panel">
+                  <div className="lp-panel-head">
+                    <span>Landing ensemble</span>
+                    {pred.ensemble && <span className="val">{(pred.ensemble.in_probability * 100).toFixed(0)}% IN</span>}
+                  </div>
+                  <div style={{ padding: 18 }}>
+                    <TopDown pred={pred} />
+                  </div>
                   {pred.ensemble && (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                      <span className={`pill ${pred.ensemble.in_probability > 0.6 ? "good" : pred.ensemble.in_probability > 0.3 ? "warn" : "off"}`}>
-                        {(pred.ensemble.in_probability * 100).toFixed(0)}% land in
-                      </span>
-                      <span className="pill">±{pred.ensemble.spread_m} m spread</span>
+                    <div className="lp-panel-foot">
+                      <span>±{pred.ensemble.spread_m} M SPREAD</span>
+                      <span>MONTE-CARLO · {"≥"}120 FLIGHTS</span>
                     </div>
                   )}
                 </div>
 
-                <div className="card">
-                  <div className="card-title">Chaos — sensitivity to contact error</div>
+                <div className="lp-panel">
+                  <div className="lp-panel-head">
+                    <span>Chaos · contact sensitivity</span>
+                    {pred.chaos && <span className="val">λ {pred.chaos.lyapunov_estimate.toFixed(2)}</span>}
+                  </div>
                   {pred.chaos && (
                     <>
-                      <div className="grid grid-2" style={{ marginBottom: 12 }}>
-                        <Stat label="Lyapunov λ" value={pred.chaos.lyapunov_estimate.toFixed(2)}
-                          color={pred.chaos.lyapunov_estimate > 1.5 ? "var(--danger)" : "var(--court)"} />
-                        <Stat label="Predict. horizon"
-                          value={pred.chaos.predictability_horizon_s > 0 ? `${pred.chaos.predictability_horizon_s}s` : "∞"} />
+                      <div style={{ padding: 18 }}>
+                        <div className="grid grid-2" style={{ marginBottom: 12 }}>
+                          <Stat label="Lyapunov λ" value={pred.chaos.lyapunov_estimate.toFixed(2)}
+                            color={pred.chaos.lyapunov_estimate > 1.5 ? "var(--danger)" : "var(--court)"} />
+                          <Stat label="Predict. horizon"
+                            value={pred.chaos.predictability_horizon_s > 0 ? `${pred.chaos.predictability_horizon_s}s` : "∞"} />
+                        </div>
+                        <Divergence curve={pred.chaos.divergence_curve} />
+                        <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>
+                          {pred.chaos.interpretation}
+                        </p>
                       </div>
-                      <Divergence curve={pred.chaos.divergence_curve} />
-                      <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>
-                        {pred.chaos.interpretation}
-                      </p>
                     </>
                   )}
                 </div>
