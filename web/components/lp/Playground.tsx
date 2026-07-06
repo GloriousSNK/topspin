@@ -2,10 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { onScrollFrame } from "@/lib/scrollTicker";
 
 /* Scroll-driven physics for the Learn page.
-   No controls, no sliders — the simulations are integrated up front with the
-   backend's drag + Magnus model, then *drawn by your scroll*. Scrub down and
+   No controls, no sliders. Each simulation is integrated once, up front, with
+   the backend's drag + Magnus model, then drawn by your scroll. Scrub down and
    the ball flies; scrub up and it rewinds. */
 
 const G = 9.81, RHO = 1.21, CD = 0.55, R = 0.0335, M = 0.057;
@@ -45,48 +46,58 @@ function fly(speed: number, elevDeg: number, spinRpm: number, mode: 0 | 1 | 2, h
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
-/** Scrubs a callback with 0→1 progress as the element crosses the viewport. */
-function useScrub(ref: React.RefObject<HTMLElement | null>, cb: (p: number) => void) {
-  const cbRef = useRef(cb);
-  cbRef.current = cb;
-  useEffect(() => {
-    let raf = 0, last = -1;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { cbRef.current(1); return; }
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const el = ref.current;
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        const vh = window.innerHeight;
-        const p = Math.min(1, Math.max(0, (vh * 0.92 - r.top) / (vh * 0.72)));
-        if (Math.abs(p - last) < 0.002) return;
-        last = p;
-        cbRef.current(p);
-      });
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, [ref]);
-}
+/**
+ * Manages a scroll-scrubbed canvas: sizes the pixel buffer only when the width
+ * actually changes (never on scroll), and repaints via the shared scroll
+ * ticker. `draw(ctx, w, h, progress)` gets CSS pixels and 0..1 progress.
+ */
+function useScrubCanvas(draw: (ctx: CanvasRenderingContext2D, w: number, h: number, p: number) => void) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
 
-function setupCanvas(wrap: HTMLDivElement, canvas: HTMLCanvasElement) {
-  const rect = wrap.getBoundingClientRect();
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const w = rect.width, h = rect.width * 0.52;
-  canvas.style.height = `${h}px`;
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
-  const ctx = canvas.getContext("2d");
-  if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { ctx, w, h };
+  useEffect(() => {
+    const wrap = wrapRef.current, canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let w = 0, h = 0, lastW = -1, lastP = -1;
+
+    function resize() {
+      const rect = wrap!.getBoundingClientRect();
+      if (rect.width < 10 || rect.width === lastW) return; // ignore height-only RO refires
+      lastW = rect.width;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      w = rect.width; h = rect.width * 0.52;
+      canvas!.style.height = `${h}px`;
+      canvas!.width = Math.round(w * dpr);
+      canvas!.height = Math.round(h * dpr);
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0); // realloc clears state — reset transform
+      lastP = -1;
+      render();
+    }
+
+    function render() {
+      if (w === 0) return;
+      const r = wrap!.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const p = reduce ? 1 : Math.min(1, Math.max(0, (vh * 0.92 - r.top) / (vh * 0.72)));
+      if (Math.abs(p - lastP) < 0.0015) return; // skip frames that wouldn't change a pixel
+      lastP = p;
+      drawRef.current(ctx!, w, h, p);
+    }
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(wrap);
+    resize();
+    const unsub = reduce ? undefined : onScrollFrame(render);
+    return () => { ro.disconnect(); unsub?.(); };
+  }, []);
+
+  return { wrapRef, canvasRef };
 }
 
 function courtFrame(ctx: CanvasRenderingContext2D, w: number, h: number, X: (x: number) => number, Y: (z: number) => number) {
@@ -119,31 +130,21 @@ function trace(ctx: CanvasRenderingContext2D, pts: P2[], upto: number, X: (x: nu
 
 /* ================= 1. Break the parabola (scroll-drawn) ================= */
 export function ScrollFlight() {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
   const gapRef = useRef<HTMLSpanElement>(null);
-
   const sim = useRef<{ vac: P2[]; drag: P2[]; real: P2[] } | null>(null);
   if (!sim.current) sim.current = { vac: fly(32, 10, 0, 0), drag: fly(32, 10, 0, 1), real: fly(32, 10, 2200, 2) };
   const { vac, drag, real } = sim.current;
   const finalGap = vac[vac.length - 1][0] - real[real.length - 1][0];
 
-  useScrub(panelRef, (p) => {
-    const wrap = wrapRef.current, canvas = canvasRef.current;
-    if (!wrap || !canvas) return;
-    const { ctx, w, h } = setupCanvas(wrap, canvas);
-    if (!ctx) return;
+  const { wrapRef, canvasRef } = useScrubCanvas((ctx, w, h, p) => {
     const pad = 20;
     const X = (x: number) => pad + ((x + 1) / 34) * (w - pad * 2);
     const Y = (z: number) => h - 24 - (z / 9) * (h - 44);
     courtFrame(ctx, w, h, X, Y);
     const e = easeOut(p);
-    // the three physics draw in sequence: fantasy first, then air, then spin
     const tipV = trace(ctx, vac, Math.min(1, e * 1.5), X, Y, "rgba(29,34,27,0.3)", 1.4, [4, 5]);
     const tipD = trace(ctx, drag, Math.min(1, Math.max(0, e * 1.5 - 0.18)), X, Y, "rgba(46,109,168,0.65)", 1.8);
     const tipR = trace(ctx, real, Math.min(1, Math.max(0, e * 1.5 - 0.36)), X, Y, "#17673a", 2.6);
-    // moving balls at each tip
     for (const [tip, c, r] of [[tipV, "rgba(29,34,27,0.35)", 3], [tipD, "rgba(46,109,168,0.85)", 3.4], [tipR, "#17673a", 4.2]] as const) {
       ctx.fillStyle = c;
       ctx.beginPath(); ctx.arc(X(tip[0]), Y(tip[1]), r, 0, Math.PI * 2); ctx.fill();
@@ -155,9 +156,9 @@ export function ScrollFlight() {
   });
 
   return (
-    <div className="lp-panel" ref={panelRef}>
+    <div className="lp-panel">
       <div className="lp-panel-head">
-        <span>One swing · three physics</span>
+        <span>One swing, three physics</span>
         <span className="val">PARABOLA LIES BY <span ref={gapRef}>0.0 M</span></span>
       </div>
       <div style={{ padding: "18px 18px 10px" }} ref={wrapRef}>
@@ -175,20 +176,12 @@ export function ScrollFlight() {
 
 /* ================= 2. Chaos twins (scroll-flown) ================= */
 export function ChaosScroll() {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
   const sepRef = useRef<HTMLSpanElement>(null);
-
   const sim = useRef<{ a: P2[]; b: P2[] } | null>(null);
   if (!sim.current) sim.current = { a: fly(31, 9, 2000, 2), b: fly(31, 9.35, 2000, 2) };
   const { a, b } = sim.current;
 
-  useScrub(panelRef, (p) => {
-    const wrap = wrapRef.current, canvas = canvasRef.current;
-    if (!wrap || !canvas) return;
-    const { ctx, w, h } = setupCanvas(wrap, canvas);
-    if (!ctx) return;
+  const { wrapRef, canvasRef } = useScrubCanvas((ctx, w, h, p) => {
     const pad = 20;
     const X = (x: number) => pad + ((x + 1) / 30) * (w - pad * 2);
     const Y = (z: number) => h - 24 - (z / 9) * (h - 44);
@@ -196,7 +189,6 @@ export function ChaosScroll() {
     const e = easeOut(p);
     const pa = trace(ctx, a, e, X, Y, "#17673a", 2.4);
     const pb = trace(ctx, b, e, X, Y, "#c23e1f", 2.4);
-    // the growing gap, made visible
     ctx.strokeStyle = "rgba(29,34,27,0.5)"; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
     ctx.beginPath(); ctx.moveTo(X(pa[0]), Y(pa[1])); ctx.lineTo(X(pb[0]), Y(pb[1])); ctx.stroke();
     ctx.setLineDash([]);
@@ -210,7 +202,7 @@ export function ChaosScroll() {
   const finalSep = Math.hypot(a[a.length - 1][0] - b[b.length - 1][0], a[a.length - 1][1] - b[b.length - 1][1]);
 
   return (
-    <div className="lp-panel" ref={panelRef}>
+    <div className="lp-panel">
       <div className="lp-panel-head">
         <span>Two “identical” shots</span>
         <span className="val">GAP <span ref={sepRef}>0 CM</span></span>

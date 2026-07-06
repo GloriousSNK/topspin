@@ -3,20 +3,16 @@ import type { Metadata } from "next";
 import PhysicsHero from "@/components/lp/PhysicsHero";
 import DispersionMap from "@/components/lp/DispersionMap";
 import CourtMorph from "@/components/lp/CourtMorph";
-import { Reveal, Counter, Magnetic } from "@/components/lp/Motion";
+import LiveMarquee from "@/components/lp/LiveMarquee";
+import LiveNumbers from "@/components/lp/LiveNumbers";
+import { Reveal, Magnetic } from "@/components/lp/Motion";
 
 export const metadata: Metadata = {
-  title: "TopSpin — The physics of a better game",
+  title: { absolute: "TopSpin · The physics of a better game" },
   description:
-    "On-device stroke analysis, drills built from your real flaws, and ball-flight " +
-    "prediction with genuine drag + Magnus physics. Nothing uploaded, nothing guessed.",
+    "Film one stroke. TopSpin reads your form on your own device, then predicts your ball " +
+    "flight with real drag and Magnus physics. Your footage never leaves your phone.",
 };
-
-const MARQUEE = [
-  "RK4 integration", "Drag + Magnus lift", "320-flight ensembles",
-  "Finite-time Lyapunov", "33 pose landmarks", "0 clips uploaded",
-  "Sub-second predictions", "34-drill engine",
-];
 
 export default function Landing() {
   return (
@@ -31,8 +27,8 @@ export default function Landing() {
               The physics of a <em>better game.</em>
             </h1>
             <p className="lp-hero-sub">
-              Film one stroke. TopSpin reads your body like a coach, simulates your
-              ball like an engineer, and hands you the one thing worth fixing.
+              Film one stroke. TopSpin reads your body the way a coach would, flies your ball
+              the way an engineer would, and hands you the one thing worth fixing.
             </p>
             <div className="lp-hero-cta">
               <Magnetic>
@@ -51,16 +47,8 @@ export default function Landing() {
         <div className="lp-scroll-cue" aria-hidden="true" />
       </section>
 
-      {/* ================= CREDIBILITY STRIP ================= */}
-      <div className="lp-strip" aria-hidden="true">
-        <div className="lp-marquee">
-          {[0, 1].map((set) => (
-            <div className="lp-marquee-set" key={set}>
-              {MARQUEE.map((t) => <span key={t}>{t}</span>)}
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* ================= CREDIBILITY STRIP (live) ================= */}
+      <LiveMarquee />
 
       {/* ================= 01 — FLIGHT ================= */}
       <section className="section" id="physics">
@@ -68,14 +56,15 @@ export default function Landing() {
           <div>
             <Reveal><span className="lp-sec-num">01 / FLIGHT</span></Reveal>
             <Reveal delay={60}>
-              <h2 className="lp-h2">A struck ball is a chaotic system. We treat it like one.</h2>
+              <h2 className="lp-h2">A struck ball is a chaotic system, so we treat it like one.</h2>
             </Reveal>
             <Reveal delay={120}>
               <p className="lp-body">
-                After contact, your ball feels gravity, quadratic drag, and the Magnus
-                force from spin — a nonlinear system with no closed-form answer. So we
-                don&apos;t draw an arc. We integrate the flight step by step, then fly it
-                hundreds of times with tiny contact variations to get honest odds.
+                Once it leaves your strings the ball feels three things: gravity, drag from the
+                air, and the Magnus force from spin. There&apos;s no clean formula for where that
+                lands, so we don&apos;t fake one with a smooth arc. We march the flight forward
+                step by step, then fly it a few hundred times with tiny variations to get honest
+                odds.
               </p>
             </Reveal>
             <Reveal delay={180}>
@@ -85,8 +74,8 @@ export default function Landing() {
             </Reveal>
             <Reveal delay={240}>
               <p className="lp-body" style={{ marginBottom: 26 }}>
-                Aim the reticle. Watch the spread grow as you get greedy with depth and
-                lines — that spread is the margin you&apos;re actually playing with.
+                Aim the reticle and watch the spread grow as you get greedy with depth and the
+                lines. That spread is the margin you&apos;re actually playing with.
               </p>
             </Reveal>
             <Reveal delay={300}>
@@ -108,11 +97,10 @@ export default function Landing() {
             </Reveal>
             <Reveal delay={120}>
               <p className="lp-body">
-                Drop in a clip and a pose model traces 33 landmarks through your swing —
-                on your device, frame by frame. At contact we measure elbow, knee and
-                trunk angles against stroke-specific targets and score the whole motion
-                from 0 to 100. No generic tips; the feedback is about the swing you
-                actually made.
+                Drop in a clip and a pose model traces 33 landmarks through your swing, frame by
+                frame, right on your device. At contact we measure your elbow, knee and trunk
+                angles against stroke-specific targets, then score the whole motion out of 100.
+                You won&apos;t get generic tips. The feedback is about the swing you actually made.
               </p>
             </Reveal>
             <Reveal delay={200}>
@@ -142,10 +130,10 @@ export default function Landing() {
             </Reveal>
             <Reveal delay={120}>
               <p className="lp-body">
-                Every flaw the analysis finds is wired to drills that fix it. Your worst
-                habit gets worked first, the session fits the minutes you have, and each
-                line tells you why it&apos;s there. Saved workouts live on your Stats page
-                with your form trend — the loop closes.
+                Every flaw the analysis turns up is wired to drills that fix it. Your worst habit
+                gets worked first, the session fits the minutes you actually have, and every line
+                tells you why it&apos;s there. Saved workouts sit on your Stats page next to your
+                form trend, so the loop closes on its own.
               </p>
             </Reveal>
             <Reveal delay={200}>
@@ -182,29 +170,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ================= NUMBERS ================= */}
-      <section aria-label="By the numbers">
-        <div className="container">
-          <div className="lp-numbers">
-            <Reveal className="lp-number" delay={0}>
-              <span className="v"><Counter to={320} /></span>
-              <span className="k">Flights per prediction</span>
-            </Reveal>
-            <Reveal className="lp-number" delay={90}>
-              <span className="v"><Counter to={33} /></span>
-              <span className="k">Pose landmarks tracked</span>
-            </Reveal>
-            <Reveal className="lp-number" delay={180}>
-              <span className="v"><Counter to={0.7} decimals={1} suffix="s" /></span>
-              <span className="k">Full physics prediction</span>
-            </Reveal>
-            <Reveal className="lp-number" delay={270}>
-              <span className="v"><Counter to={0} /></span>
-              <span className="k">Clips uploaded, ever</span>
-            </Reveal>
-          </div>
-        </div>
-      </section>
+      {/* ================= NUMBERS (last cell is live) ================= */}
+      <LiveNumbers />
 
       {/* ================= STATEMENT ================= */}
       <section className="lp-statement">

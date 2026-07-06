@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "About — TopSpin",
-  description: "Why TopSpin exists, who it's for, and how the AI + physics pipeline fits together.",
+  title: "About",
+  description: "Why TopSpin exists, who it's for, and how the vision and physics fit together.",
 };
 
 export default function About() {

@@ -5,10 +5,10 @@ import DispersionMap from "@/components/lp/DispersionMap";
 import { Reveal } from "@/components/lp/Motion";
 
 export const metadata: Metadata = {
-  title: "Learn — The physics behind TopSpin",
+  title: "The physics, played not read",
   description:
-    "Play with the real forces on a tennis ball: break the school parabola, watch two identical " +
-    "shots diverge, and aim a 320-flight landing ensemble with your cursor.",
+    "Play with the real forces on a tennis ball. Break the school parabola, watch two identical " +
+    "shots drift apart, and aim a 320-flight landing ensemble with your cursor.",
 };
 
 export default function Learn() {
@@ -23,8 +23,8 @@ export default function Learn() {
           </h1>
           <p style={{ fontSize: 17, color: "var(--ink-soft)", lineHeight: 1.7, maxWidth: 620 }}>
             Everything on this page runs the same flight model as the Ball Lab, and it plays out
-            as you scroll — balls fly, gaps grow, odds shift. Five minutes and you&apos;ll know
-            exactly why that &quot;identical&quot; forehand landed two feet shorter.
+            as you scroll. Balls fly, gaps grow, the odds shift. Give it five minutes and
+            you&apos;ll know exactly why that &quot;identical&quot; forehand landed two feet shorter.
           </p>
         </div>
       </section>
@@ -38,13 +38,12 @@ export default function Learn() {
             <Reveal delay={120}>
               <p className="lp-body">
                 The moment the ball leaves your strings, exactly three things touch it.
-                <b style={{ color: "var(--ink)" }}> Gravity</b> pulls straight down — constant,
-                boring, predictable. <b style={{ color: "var(--ink)" }}>Drag</b> is the air pushing
-                back along the flight path, and it grows with the <i>square</i> of speed, so a fast
-                ball gets punished far harder than a slow one.
-                <b style={{ color: "var(--ink)" }}> Magnus</b> is the spin force: a spinning ball
-                drags a layer of air around with it, which shoves it sideways — down for topspin,
-                up for slice.
+                <b style={{ color: "var(--ink)" }}> Gravity</b> pulls straight down, constant and
+                boring. <b style={{ color: "var(--ink)" }}>Drag</b> is the air pushing back along
+                the flight path, and it grows with the <i>square</i> of speed, so a fast ball gets
+                punished far harder than a slow one. <b style={{ color: "var(--ink)" }}>Magnus</b>
+                {" "}is the spin force. A spinning ball drags a layer of air around with it, and
+                that shoves it sideways: down for topspin, up for slice.
               </p>
             </Reveal>
             <Reveal delay={180}>
@@ -83,23 +82,23 @@ export default function Learn() {
             <Reveal delay={60}><h2 className="lp-h2">Break the school parabola.</h2></Reveal>
             <Reveal delay={120}>
               <p className="lp-body">
-                The clean arc you learned in school only works in a vacuum. Add drag — which
-                depends on speed — and Magnus — which depends on speed <i>and</i> direction — and
-                the equation starts feeding on its own answer. No formula survives that. The only
-                honest way to know where the ball lands is to march it forward: tiny time step,
-                recompute the forces, nudge the ball, repeat a few hundred times until it bounces.
+                The clean arc you learned in school only works in a vacuum. Add drag (which depends
+                on speed) and Magnus (which depends on speed <i>and</i> direction) and the equation
+                starts feeding on its own answer. No formula survives that. The only honest way to
+                know where the ball lands is to march it forward a tiny step at a time: recompute
+                the forces, nudge the ball, repeat a few hundred times until it bounces.
               </p>
             </Reveal>
             <Reveal delay={180}>
               <p className="lp-body">
                 Just scroll. The same swing flies three times: the dotted arc is the textbook
-                fantasy, the blue one adds air, the green one adds spin. By the time they land,
-                the fantasy has overshot by <i>metres</i> — the difference between painting the
-                baseline and feeding your opponent a short ball.
+                fantasy, the blue one adds air, the green one adds spin. By the time they land, the
+                fantasy has overshot by whole <i>metres</i>. That&apos;s the difference between
+                painting the baseline and feeding your opponent a sitter.
               </p>
             </Reveal>
             <Reveal delay={240}>
-              <span className="lp-eq">step · <b>dt = 1/240 s</b> · method · <b>RK4</b> — same maths that plots planetary orbits</span>
+              <span className="lp-eq">step · <b>dt = 1/240 s</b> · method · <b>RK4</b> · the same maths that plots planetary orbits</span>
             </Reveal>
           </div>
         </div>
@@ -114,23 +113,23 @@ export default function Learn() {
             <Reveal delay={120}>
               <p className="lp-body">
                 Here&apos;s the unsettling part. Those forces feed on each other, which makes ball
-                flight genuinely chaotic. The two shots beside this leave the strings a third of a
-                degree apart — a slip you couldn&apos;t feel if you tried — and the gap between
+                flight genuinely chaotic. The two shots beside this one leave the strings a third
+                of a degree apart, a slip you couldn&apos;t feel if you tried, and the gap between
                 them grows the entire way down.
               </p>
             </Reveal>
             <Reveal delay={180}>
               <p className="lp-body">
-                There&apos;s a single number for how fast that blow-up happens — the Ball Lab calls
-                it <b style={{ color: "var(--ink)" }}>λ</b> (a Lyapunov exponent). Big λ: a twitchy,
-                unforgiving shot. Small λ: room to spare. A flat drive aimed at a line runs hot; a
-                loopy topspin ball with net clearance stays calm. Now you can measure which one
-                you&apos;re actually hitting.
+                There&apos;s a single number for how fast that blow-up happens, and the Ball Lab
+                calls it <b style={{ color: "var(--ink)" }}>λ</b> (a Lyapunov exponent). A big λ
+                means a twitchy, unforgiving shot. A small one means you&apos;ve got room to spare.
+                A flat drive aimed at a line runs hot; a loopy topspin ball with net clearance
+                stays calm. Now you can measure which one you&apos;re actually hitting.
               </p>
             </Reveal>
             <Reveal delay={240}>
               <p className="lp-body" style={{ marginBottom: 0 }}>
-                Keep scrolling and watch them split. That&apos;s exponential divergence — not a
+                Keep scrolling and watch them split. That&apos;s exponential divergence. Not a
                 metaphor, the actual thing, happening to your forehand.
               </p>
             </Reveal>
@@ -149,17 +148,17 @@ export default function Learn() {
             <Reveal delay={120}>
               <p className="lp-body">
                 If no swing is exactly repeatable, a single predicted landing spot is a polite
-                fiction. So we do what weather forecasters do: jitter the contact hundreds of times
-                by realistic amounts — a little speed, a little angle, a little spin — and fly every
-                version. The spread is your real margin, and the fraction that stays in is a real
-                in/out probability.
+                fiction. So we borrow the weather forecaster&apos;s trick: jitter the contact a few
+                hundred times by realistic amounts (a little speed, a little angle, a little spin)
+                and fly every version. The spread is your real margin, and the fraction that stays
+                in is a real in/out probability.
               </p>
             </Reveal>
             <Reveal delay={180}>
               <p className="lp-body">
                 A shot that looks &quot;in&quot; on paper but only stays in six times out of ten is
                 telling you something no single trajectory ever could. Move your cursor over the
-                court — get greedy with the lines and watch your own odds fall.
+                court, get greedy with the lines, and watch your own odds fall.
               </p>
             </Reveal>
             <Reveal delay={240}>
@@ -176,11 +175,11 @@ export default function Learn() {
           <Reveal delay={60}><h2 className="lp-h2">The physics reads the ball. The vision reads <em>you.</em></h2></Reveal>
           <Reveal delay={120}>
             <p className="lp-body" style={{ maxWidth: 640 }}>
-              A pose model finds 33 landmarks on your body in every frame of your clip, right in
-              the browser — nothing is uploaded, ever. From those we pick the contact moment,
-              measure your elbow, knee and trunk angles against stroke-specific targets, and score
-              the swing 0–100. Flaws become drills, drills become sessions, and your Stats page
-              keeps the receipts.
+              A pose model finds 33 landmarks on your body in every frame of your clip, right there
+              in the browser. Nothing is uploaded, ever. From those points we pick the contact
+              moment, measure your elbow, knee and trunk angles against stroke-specific targets,
+              and score the swing out of 100. Flaws become drills, drills become sessions, and your
+              Stats page keeps the receipts.
             </p>
           </Reveal>
           <Reveal delay={180}>
@@ -200,7 +199,7 @@ export default function Learn() {
       <section className="lp-cta">
         <div className="container">
           <Reveal><h2>Enough theory. Hit something.</h2></Reveal>
-          <Reveal delay={100}><p>The Ball Lab turns all of this into sliders — with your shot, your spin, your odds.</p></Reveal>
+          <Reveal delay={100}><p>The Ball Lab turns all of this into sliders. Your shot, your spin, your odds.</p></Reveal>
           <Reveal delay={200}>
             <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
               <Link href="/ball-lab" className="btn btn-lg">Open the Ball Lab</Link>

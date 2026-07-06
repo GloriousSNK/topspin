@@ -27,27 +27,38 @@ export function Reveal({ children, delay = 0, className, style }: {
   );
 }
 
-/** Counts from 0 to `to` when scrolled into view. */
+/** Counts up to `to` when scrolled into view. If `to` changes later (e.g. a
+    live number arrives after fetch), it eases from the current value to the new
+    one, so the band never snaps or shows a stale figure. */
 export function Counter({ to, decimals = 0, suffix }: { to: number; decimals?: number; suffix?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
+  const from = useRef(0);
+  const seen = useRef(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       el.textContent = to.toFixed(decimals);
+      from.current = to;
       return;
     }
-    const io = new IntersectionObserver(([en]) => {
-      if (!en.isIntersecting) return;
-      io.disconnect();
-      const t0 = performance.now(), dur = 1400;
+    const run = () => {
+      const start = from.current, t0 = performance.now(), dur = 1200;
       const tick = (t: number) => {
         const p = Math.min(1, (t - t0) / dur);
         const e = 1 - Math.pow(2, -10 * p); // easeOutExpo
-        el.textContent = (to * (p === 1 ? 1 : e)).toFixed(decimals);
+        el.textContent = (start + (to - start) * (p === 1 ? 1 : e)).toFixed(decimals);
         if (p < 1) requestAnimationFrame(tick);
+        else from.current = to;
       };
       requestAnimationFrame(tick);
+    };
+    if (seen.current) { run(); return; } // already visible: just re-run to the new target
+    const io = new IntersectionObserver(([en]) => {
+      if (!en.isIntersecting) return;
+      seen.current = true;
+      io.disconnect();
+      run();
     }, { threshold: 0.5 });
     io.observe(el);
     return () => io.disconnect();

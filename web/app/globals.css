@@ -690,7 +690,6 @@ html { scroll-behavior: smooth; }
   transform: translateY(26px);
   transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
   transition-delay: var(--rd, 0ms);
-  will-change: opacity, transform;
 }
 [data-reveal].is-in { opacity: 1; transform: none; }
 

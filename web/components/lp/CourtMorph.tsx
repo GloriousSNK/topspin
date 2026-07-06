@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { onScrollFrame } from "@/lib/scrollTicker";
 
 /**
  * Court lines that become a body.
@@ -72,7 +73,6 @@ export default function CourtMorph() {
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
-    let raf = 0;
 
     function apply(p: number) {
       const e = ease(p);
@@ -99,30 +99,20 @@ export default function CourtMorph() {
       if (labelRef.current) labelRef.current.setAttribute("opacity", String(dotIn));
     }
 
-    function onScroll() {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const node = wrapRef.current;
-        if (!node) return;
-        const rect = node.getBoundingClientRect();
-        const vh = window.innerHeight;
-        // 0 when the panel enters at 88% of the viewport → 1 by 30%
-        const p = Math.min(1, Math.max(0, (vh * 0.88 - rect.top) / (vh * 0.58)));
-        if (Math.abs(p - pRef.current) < 0.002) return;
-        pRef.current = p;
-        apply(p);
-      });
+    function tick() {
+      const node = wrapRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // 0 when the panel enters at 88% of the viewport, 1 by roughly 30%
+      const p = Math.min(1, Math.max(0, (vh * 0.88 - rect.top) / (vh * 0.58)));
+      if (Math.abs(p - pRef.current) < 0.0015) return;
+      pRef.current = p;
+      apply(p);
     }
 
     apply(0);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
+    return onScrollFrame(tick);
   }, []);
 
   return (
