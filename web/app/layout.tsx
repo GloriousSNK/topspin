@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import Analytics from "@/components/Analytics";
 import { AuthProvider } from "@/components/AuthProvider";
+import { SITE_URL, SITE_NAME, ORG_NAME, SITE_DESCRIPTION } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,43 +26,65 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://topspin.tennis";
-const DESCRIPTION =
-  "Film one stroke and TopSpin reads your form on-device, then predicts your " +
-  "ball flight with real drag and Magnus physics. Your footage never leaves your phone.";
-
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: "TopSpin · The physics of a better game",
     template: "%s · TopSpin",
   },
-  description: DESCRIPTION,
-  applicationName: "TopSpin",
-  authors: [{ name: "TopSpin Labs" }],
-  creator: "TopSpin Labs",
-  publisher: "TopSpin Labs",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: ORG_NAME, url: SITE_URL }],
+  creator: ORG_NAME,
+  publisher: ORG_NAME,
   keywords: [
-    "tennis", "stroke analysis", "ball flight prediction", "pose detection",
-    "tennis practice", "tennis coaching", "topspin", "Magnus effect", "serve speed",
+    "TopSpin Labs", "TopSpin", "tennis", "stroke analysis", "ball flight prediction",
+    "pose detection", "tennis practice", "tennis coaching", "Magnus effect", "serve speed",
   ],
   category: "sports",
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    siteName: "TopSpin",
+    siteName: SITE_NAME,
     url: SITE_URL,
     title: "TopSpin · The physics of a better game",
-    description: DESCRIPTION,
+    description: SITE_DESCRIPTION,
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
     title: "TopSpin · The physics of a better game",
-    description: DESCRIPTION,
+    description: SITE_DESCRIPTION,
+    creator: "@topspinlabs",
   },
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
   icons: { icon: "/icon.svg", shortcut: "/icon.svg", apple: "/icon.svg" },
 };
+
+// Organisation + WebSite structured data so search engines can connect the name
+// "TopSpin Labs" to this site. Static, self-authored JSON — no user input.
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: ORG_NAME,
+    alternateName: "TopSpin",
+    url: SITE_URL,
+    logo: `${SITE_URL}/icon.svg`,
+    description: SITE_DESCRIPTION,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE_NAME,
+    url: SITE_URL,
+    publisher: { "@type": "Organization", name: ORG_NAME },
+  },
+];
 
 export default function RootLayout({
   children,
@@ -75,6 +98,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} antialiased`}
     >
       <body>
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <AuthProvider>{children}</AuthProvider>
         <Analytics />
       </body>
