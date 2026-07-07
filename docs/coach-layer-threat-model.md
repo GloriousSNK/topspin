@@ -4,6 +4,21 @@ Written before the schema, per the build spec. The SQL in
 `supabase-coach-layer.sql` is implemented against these threats. Anything here
 marked **TODO(1b)** depends on the auth migration and consent route handlers.
 
+## Phase 1b status (what's now closed)
+
+The parent-consent flow is implemented. Closed here: the guardian-consent
+tokens and approval route (**T6**), the server-derived signup age→status
+decision so a client can't self-approve (**T5/T6**), and summary deletion on
+leaving a squad (**T9**) — see `supabase-coach-layer-1b.sql`, `web/lib/consent*.ts`,
+and `web/app/api/consent/*`. Rate-limiting now covers the consent request/approve
+routes.
+
+**Still open (flagged deferrals):** the `@supabase/ssr` httpOnly-cookie
+migration (**T7**) — the app still uses the browser SDK session; and the coach
+dashboard route guard (**T8**) plus `join_squad` route rate-limiting, which land
+with the Phase 2 dashboard and squad-join UI. Login rate-limiting rides on
+Supabase's own auth throttling until the SSR migration.
+
 ## What we store, and where the wall is
 
 | Data | Table | Who can read it |

@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { getSessions, getMyProfile, setMyProfile } from "@/lib/history";
+import {
+  getMyConsent, submitAgeGate, resendGuardianRequest, needsGuardianConsent,
+  type ConsentRow,
+} from "@/lib/consent";
 
 const PERKS = [
   ["Save every analysis", "Your form scores and flaws are kept, so you can look back."],
@@ -28,6 +32,8 @@ export default function Account() {
   const [usta, setUsta] = useState("");
   const [savedProfile, setSavedProfile] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [consent, setConsent] = useState<ConsentRow | null>(null);
+  const [consentLoaded, setConsentLoaded] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -36,6 +42,7 @@ export default function Account() {
     getMyProfile().then((p) => {
       if (alive && p) { setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); setUtr(p.utr ?? ""); setUsta(p.usta ?? ""); }
     });
+    getMyConsent().then((c) => { if (alive) { setConsent(c); setConsentLoaded(true); } });
     return () => { alive = false; };
   }, [user]);
 
@@ -80,8 +87,28 @@ export default function Account() {
   // ---- signed in ----
   if (user) {
     const initial = (user.email ?? "?").charAt(0).toUpperCase();
+
+    // Wait for the consent row before deciding what to show, so a user who
+    // still needs the age gate doesn't see the account flash first.
+    if (!consentLoaded) return <h1 className="h1">Account</h1>;
+
+    // One-time age gate: a fresh account tells us its birth year before the
+    // account is usable, so minors are routed through guardian consent
+    // (COPPA/GDPR). The whole app stays usable account-free for anyone who'd
+    // rather not make an account at all.
+    if (!consent) {
+      return <AgeGate email={user.email ?? ""} onDone={setConsent} onSignOut={() => signOut()} />;
+    }
+
+    const pending = consent.consent_status === "pending";
     return (
       <div>
+        {pending && (
+          <PendingConsentBanner
+            guardianEmail={consent.guardian_email ?? ""}
+            onResend={resendGuardianRequest}
+          />
+        )}
         <span className="eyebrow">Your locker</span>
         <h1 className="h1">Your account</h1>
         <p className="lead">Everything you analyse is saved here so you can track it over time.</p>
@@ -146,7 +173,10 @@ export default function Account() {
         <div className="card">
           <div className="card-title">Your data</div>
           <p style={{ color: "var(--ink-soft)", fontSize: 14, marginBottom: 12 }}>
-            We store your email and your saved analyses. Clips are never uploaded. You can wipe your history any time.
+            We store your email, your birth year, your saved analyses, and — only if you&apos;re under 16 —
+            a guardian email for consent. Clips are never uploaded. You can wipe your history any time, and
+            deleting your account removes all of it. See the{" "}
+            <Link href="/privacy" style={{ color: "var(--court)", fontWeight: 600 }}>privacy page</Link>.
           </p>
           <button className="btn btn-ghost" style={{ borderColor: "var(--danger)", color: "var(--danger)" }} onClick={clearHistory}>
             Delete my saved analyses
@@ -224,6 +254,114 @@ function QuickCard({ href, title, desc }: { href: string; title: string; desc: s
       <div style={{ fontWeight: 700, marginBottom: 4 }}>{title} →</div>
       <div style={{ color: "var(--ink-soft)", fontSize: 13 }}>{desc}</div>
     </Link>
+  );
+}
+
+// One-time age gate shown right after a new account's first sign-in. We store
+// only a birth YEAR (coarse, lower-data). The server re-derives whether a
+// guardian is required — this form just reveals the guardian field early so a
+// minor knows what's coming. See lib/consent.ts and the /api/consent routes.
+function AgeGate({ email, onDone, onSignOut }: {
+  email: string; onDone: (c: ConsentRow) => void; onSignOut: () => void;
+}) {
+  const thisYear = new Date().getFullYear();
+  const [year, setYear] = useState("");
+  const [guardianEmail, setGuardianEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const yearNum = Number(year);
+  const validYear = /^\d{4}$/.test(year) && yearNum >= thisYear - 120 && yearNum <= thisYear;
+  const minor = validYear && needsGuardianConsent(yearNum);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setErr(null);
+    const r = await submitAgeGate(yearNum, minor ? guardianEmail : undefined);
+    if (!r.ok) { setErr(r.error ?? "Something went wrong."); setBusy(false); return; }
+    const c = await getMyConsent();
+    setBusy(false);
+    if (c) onDone(c);
+    else setErr("Saved, but couldn't reload. Refresh the page.");
+  }
+
+  return (
+    <div>
+      <span className="eyebrow">One quick thing</span>
+      <h1 className="h1">Before we finish setting up</h1>
+      <p className="lead">
+        We ask everyone their birth year once. If you&apos;re under {16}, a parent or guardian just
+        needs to say it&apos;s OK before you can connect with a coach — you can use everything else
+        in the meantime.
+      </p>
+
+      <form onSubmit={submit} className="card" style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 460 }}>
+        <div>
+          <label className="label" htmlFor="birthyear">Birth year</label>
+          <input id="birthyear" className="select" style={{ width: 140, textTransform: "none" }}
+            inputMode="numeric" pattern="\d*" maxLength={4} value={year}
+            onChange={(e) => setYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            placeholder="e.g. 2005" autoFocus />
+        </div>
+
+        {minor && (
+          <div>
+            <label className="label" htmlFor="guardian">Parent / guardian&apos;s email</label>
+            <input id="guardian" className="select" style={{ width: "100%", textTransform: "none" }}
+              type="email" required value={guardianEmail}
+              onChange={(e) => setGuardianEmail(e.target.value)}
+              autoCapitalize="none" autoCorrect="off" spellCheck={false}
+              placeholder="parent@example.com" />
+            <p style={{ color: "var(--ink-soft)", fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
+              We&apos;ll email them a link to approve. Nothing syncs to a coach until they do.
+            </p>
+          </div>
+        )}
+
+        {err && <div role="alert" style={{ color: "var(--danger)", fontSize: 13 }}>⚠ {err}</div>}
+
+        <button className="btn" disabled={busy || !validYear || (minor && !guardianEmail)} style={{ justifyContent: "center" }}>
+          {busy ? "…" : "Save and continue"}
+        </button>
+        <button type="button" className="btn btn-ghost" style={{ justifyContent: "center", fontSize: 13 }} onClick={onSignOut}>
+          Sign out of {email || "this account"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// Shown while a minor's account is waiting on guardian approval. The account
+// exists and the on-device app works; only coach sync/join is blocked (enforced
+// server-side by RLS, not just here).
+function PendingConsentBanner({ guardianEmail, onResend }: {
+  guardianEmail: string; onResend: () => Promise<{ ok: boolean; error?: string }>;
+}) {
+  const [state, setState] = useState<"idle" | "busy" | "sent" | "error">("idle");
+  const [err, setErr] = useState<string | null>(null);
+
+  async function resend() {
+    setState("busy"); setErr(null);
+    const r = await onResend();
+    if (r.ok) setState("sent");
+    else { setErr(r.error ?? "Couldn't send."); setState("error"); }
+  }
+
+  return (
+    <div className="card" role="status" style={{ marginBottom: 18, borderColor: "var(--court)" }}>
+      <div className="card-title">Waiting on a parent or guardian</div>
+      <p style={{ color: "var(--ink-soft)", fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>
+        We emailed {guardianEmail ? <strong style={{ color: "var(--ink)" }}>{guardianEmail}</strong> : "your guardian"} a
+        link to approve your account. Until they do, you can analyse clips, run drills, and use the
+        Ball Lab as normal — you just can&apos;t connect with a coach yet.
+      </p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <button className="btn btn-ghost" onClick={resend} disabled={state === "busy" || state === "sent"}>
+          {state === "busy" ? "…" : state === "sent" ? "✓ Sent again" : "Resend approval email"}
+        </button>
+        {state === "error" && <span style={{ color: "var(--danger)", fontSize: 13 }}>⚠ {err}</span>}
+      </div>
+    </div>
   );
 }
 

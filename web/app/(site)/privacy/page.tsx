@@ -24,9 +24,11 @@ export default function Privacy() {
           The short version: we barely track you.
         </h1>
         <p style={{ fontSize: 17, color: "var(--ink-soft)", lineHeight: 1.65, marginBottom: 36 }}>
-          You can use TopSpin without an account, and if you do, we collect nothing personal. No
-          cookies, no third-party trackers, no ad networks. An account is optional and only stores
-          what you&apos;d expect. Here&apos;s exactly what that means.
+          You can use every part of TopSpin — analysis, drills, the Ball Lab, stats — with no
+          account at all, and if you do, we still collect nothing personal beyond what you give us.
+          No cookies, no third-party trackers, no ad networks. Accounts are optional, and exist
+          mainly so a player can <em>choose</em> to connect with a coach. Here&apos;s exactly
+          what&apos;s stored, and when.
         </p>
 
         <Section title="What we collect">
@@ -48,11 +50,31 @@ export default function Privacy() {
         </Section>
 
         <Section title="If you make an account (optional)">
-          Only if you sign up, we store your <strong style={{ color: "var(--ink)" }}>email</strong> and the
+          Only if you sign up, we store your <strong style={{ color: "var(--ink)" }}>email</strong>, your
+          <strong style={{ color: "var(--ink)" }}> birth year</strong> (a single year, for the age check
+          below — never a full date of birth), and the
           <strong style={{ color: "var(--ink)" }}> analyses you save</strong> (stroke, form score, flaws, serve
           estimate) so you can track progress. Auth is handled by Supabase. We don&apos;t see or store your
           password, and we never sell or share any of it. You can delete all your saved analyses from the
           account page at any time.
+        </Section>
+
+        <Section title="Coaches, squads & connecting with one">
+          A coach connection is <strong style={{ color: "var(--ink)" }}>opt-in</strong>. If you enter a
+          coach&apos;s squad code, only a <strong style={{ color: "var(--ink)" }}>summary</strong> of your
+          practice syncs to them — form scores, drills completed, and dates. Your video and full stroke
+          breakdown stay on your device; sending a specific clip to a coach is always a separate, deliberate
+          choice, never automatic. Leaving the squad or deleting your account stops the sync and removes the
+          summary data we held for that connection.
+        </Section>
+
+        <Section title="Younger players & parental consent">
+          If your birth year says you may be under 16, you can still use the whole app on your device, but
+          connecting with a coach needs a parent or guardian&apos;s approval first. For that we store the
+          <strong style={{ color: "var(--ink)" }}> guardian email you provide</strong> and send them a
+          one-time, expiring approval link. Nothing syncs to a coach until they approve, and they (or you)
+          can undo it at any time. This is our good-faith approach to COPPA (US, under 13) and GDPR
+          (under 16); it isn&apos;t legal advice.
         </Section>
 
         <Section title="Your video clips">
