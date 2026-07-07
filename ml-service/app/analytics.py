@@ -36,6 +36,9 @@ MAX_REF = 256
 MAX_ROWS = 200_000          # hard cap; oldest rows pruned beyond this
 DAY = 86_400
 
+# Cloudflare / CDN codes that mean "unknown" — don't count them as a country.
+_NON_COUNTRIES = {"XX", "T1", "AP", "EU"}
+
 _write_lock = threading.Lock()
 _init_lock = threading.Lock()
 _initialised = False
@@ -71,7 +74,8 @@ def _ensure_schema() -> None:
                         secs     BIGINT NOT NULL DEFAULT 0,
                         path     TEXT NOT NULL,
                         session  TEXT NOT NULL,
-                        referrer TEXT
+                        referrer TEXT,
+                        country  TEXT NOT NULL DEFAULT ''
                     )"""
                 )
             else:
@@ -85,7 +89,8 @@ def _ensure_schema() -> None:
                         secs     INTEGER NOT NULL DEFAULT 0,
                         path     TEXT NOT NULL,
                         session  TEXT NOT NULL,
-                        referrer TEXT
+                        referrer TEXT,
+                        country  TEXT NOT NULL DEFAULT ''
                     )"""
                 )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)")
@@ -98,6 +103,7 @@ def _ensure_schema() -> None:
             ("kind", "TEXT NOT NULL DEFAULT 'view'", "TEXT NOT NULL DEFAULT 'view'"),
             ("n", "BIGINT NOT NULL DEFAULT 1", "INTEGER NOT NULL DEFAULT 1"),
             ("secs", "BIGINT NOT NULL DEFAULT 0", "INTEGER NOT NULL DEFAULT 0"),
+            ("country", "TEXT NOT NULL DEFAULT ''", "TEXT NOT NULL DEFAULT ''"),
         ):
             try:
                 mconn = _raw_conn()
@@ -139,6 +145,20 @@ def _clean_path(p: str | None) -> str:
     return s[:MAX_PATH] or "/"
 
 
+def _clean_country(c: str | None) -> str:
+    """Normalise a CDN geo header to a real ISO country code, or ''.
+
+    We keep only a two-letter code (never an IP or anything identifying), and
+    drop the CDN's 'unknown'/anonymised placeholders.
+    """
+    if not c:
+        return ""
+    code = str(c).strip().upper()
+    if len(code) != 2 or not code.isalpha() or code in _NON_COUNTRIES:
+        return ""
+    return code
+
+
 def _ref_origin(url: str | None) -> str:
     """Store only the referrer's origin (scheme://host) — never its path/query."""
     if not url:
@@ -156,7 +176,10 @@ def _ref_origin(url: str | None) -> str:
 _KINDS = {"view", "help", "sim", "workout"}
 
 
-def record(path: str, session: str, referrer: str | None, kind: str = "view", n: int = 1, secs: int = 0) -> None:
+def record(
+    path: str, session: str, referrer: str | None,
+    kind: str = "view", n: int = 1, secs: int = 0, country: str | None = None,
+) -> None:
     """Insert one event. `n` is the work magnitude, `secs` any duration in seconds."""
     p = _clean_path(path)
     s = _clip(session, MAX_SESSION, "anon")
@@ -164,14 +187,15 @@ def record(path: str, session: str, referrer: str | None, kind: str = "view", n:
     k = kind if kind in _KINDS else "view"
     nn = max(1, min(int(n or 1), 10_000_000))
     ss = max(0, min(int(secs or 0), 86_400))
+    co = _clean_country(country)
     with _write_lock:
         conn = _conn()
         try:
             cur = conn.cursor()
             cur.execute(
-                f"INSERT INTO events (ts, kind, n, secs, path, session, referrer) "
-                f"VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH})",
-                (time.time(), k, nn, ss, p, s, r),
+                f"INSERT INTO events (ts, kind, n, secs, path, session, referrer, country) "
+                f"VALUES ({_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH}, {_PH})",
+                (time.time(), k, nn, ss, p, s, r, co),
             )
             # Prune occasionally — the COUNT(*) scan is O(n); don't run it every write.
             if random.random() < 0.02:
@@ -188,10 +212,10 @@ def record(path: str, session: str, referrer: str | None, kind: str = "view", n:
             conn.close()
 
 
-def record_action(kind: str, n: int = 1, secs: int = 0, session: str | None = None) -> None:
+def record_action(kind: str, n: int = 1, secs: int = 0, session: str | None = None, country: str | None = None) -> None:
     """Log one useful action (analysis/simulation/workout). Never raises."""
     try:
-        record(f"/{kind}", session or "anon", None, kind=kind, n=n, secs=secs)
+        record(f"/{kind}", session or "anon", None, kind=kind, n=n, secs=secs, country=country)
     except Exception:
         pass
 
@@ -210,14 +234,15 @@ def stats() -> dict:
                 SUM(CASE WHEN kind = 'help' THEN n ELSE 0 END),
                 SUM(CASE WHEN kind = 'help' THEN secs ELSE 0 END),
                 COUNT(DISTINCT session),
-                COUNT(DISTINCT CASE WHEN referrer <> '' THEN referrer END)
+                COUNT(DISTINCT CASE WHEN referrer <> '' THEN referrer END),
+                COUNT(DISTINCT CASE WHEN country <> '' THEN country END)
             FROM events"""
         )
-        r = [int(x or 0) for x in (cur.fetchone() or [0] * 7)]
+        r = [int(x or 0) for x in (cur.fetchone() or [0] * 8)]
     finally:
         conn.close()
 
-    videos, sessions, sims, frames, footage_seconds, athletes, orgs = r
+    videos, sessions, sims, frames, footage_seconds, athletes, orgs, countries = r
     return {
         "videos_analyzed": videos,
         "practice_sessions": sessions,
@@ -226,5 +251,6 @@ def stats() -> dict:
         "footage_seconds": footage_seconds,
         "athletes_served": athletes,
         "orgs_reached": orgs,
+        "countries_reached": countries,
         "generated_at": now,
     }

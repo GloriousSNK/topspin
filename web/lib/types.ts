@@ -148,5 +148,6 @@ export interface TrafficStats {
   footage_seconds: number;
   athletes_served: number;
   orgs_reached: number;
+  countries_reached: number;
   generated_at: number;
 }

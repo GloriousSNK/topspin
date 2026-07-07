@@ -20,6 +20,18 @@ class TrackIn(BaseModel):
 # Per-IP flood control. LRU-bounded (no global reset that could be abused).
 _track_limiter = RateLimiter(max_events=120, window_s=60.0)
 
+# Country comes from whatever CDN fronts the service (Cloudflare, which Render
+# sits behind, sets CF-IPCountry). We keep only the two-letter code, never the IP.
+_GEO_HEADERS = ("cf-ipcountry", "x-vercel-ip-country", "x-country-code", "x-geo-country")
+
+
+def _country_of(request: Request) -> str | None:
+    for h in _GEO_HEADERS:
+        v = request.headers.get(h)
+        if v:
+            return v
+    return None
+
 
 @router.post("/track")
 def track(ev: TrackIn, request: Request):
@@ -27,7 +39,7 @@ def track(ev: TrackIn, request: Request):
     ip = request.client.host if request.client else "?"
     if not _track_limiter.allow(ip):
         return {"ok": False, "throttled": True}
-    analytics.record(ev.path, ev.session, ev.referrer)
+    analytics.record(ev.path, ev.session, ev.referrer, country=_country_of(request))
     return {"ok": True}
 
 
@@ -37,7 +49,10 @@ def analysis_done(request: Request, seconds: int = 0, frames: int = 0):
     ip = request.client.host if request.client else "?"
     if not _track_limiter.allow(ip):
         return {"ok": False, "throttled": True}
-    analytics.record_action("help", n=max(1, min(frames, 200000)), secs=max(0, min(seconds, 3600)))
+    analytics.record_action(
+        "help", n=max(1, min(frames, 200000)), secs=max(0, min(seconds, 3600)),
+        country=_country_of(request),
+    )
     return {"ok": True}
 
 
