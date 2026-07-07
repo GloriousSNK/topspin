@@ -3,9 +3,9 @@
 import { Reveal, Counter } from "./Motion";
 import { useTrafficStats } from "@/lib/useTrafficStats";
 
-/* The count-up band. Three numbers are constants about the engine; the last
-   one is live usage from the analytics service, so it counts up to the real
-   number of strokes people have run through TopSpin. */
+/* The count-up band. Three figures are constants about the engine; the last is
+   the live "videos analysed" count, read from the same shared /analytics/stats
+   source the Insights page uses, so the two always agree. */
 
 const FALLBACK_CLIPS = 88;
 
@@ -31,7 +31,7 @@ export default function LiveNumbers() {
           </Reveal>
           <Reveal className="lp-number" delay={270}>
             <span className="v"><Counter to={clips} /></span>
-            <span className="k">Strokes analysed so far</span>
+            <span className="k">Videos analysed so far</span>
           </Reveal>
         </div>
       </div>

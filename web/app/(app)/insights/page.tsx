@@ -1,59 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import type { TrafficStats } from "@/lib/types";
+import { useTrafficStats } from "@/lib/useTrafficStats";
 
 export default function Insights() {
-  const [stats, setStats] = useState<TrafficStats | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let alive = true;
-    async function load() {
-      try {
-        const s = await api.stats();
-        if (!alive) return;
-        setStats(s);      // keep last good data on a later blip; only replace on success
-        setErr(null);
-      } catch (e) {
-        if (!alive) return;
-        setErr(e instanceof Error ? e.message : "Failed to load stats");
-      } finally {
-        if (alive) setLoading(false);
-      }
-    }
-    load();
-    const id = setInterval(load, 15000); // refresh while you watch
-    return () => { alive = false; clearInterval(id); };
-  }, []);
+  // Same shared source the landing page reads, so the numbers match exactly.
+  const stats = useTrafficStats();
 
   return (
     <div>
       <span className="eyebrow">Telemetry</span>
       <h1 className="h1">Traffic insights</h1>
       <p className="lead">
-        Anonymous, self-hosted analytics — no cookies, no third parties, nothing leaves your
+        Anonymous, self-hosted analytics. No cookies, no third parties, nothing leaves your
         machine. Updates live as people move through the site.
       </p>
 
-      {loading && !stats && !err && (
+      {!stats && (
         <div className="card" style={{ marginBottom: 18 }}>
           <strong style={{ color: "var(--court)" }}>● Loading…</strong>
-        </div>
-      )}
-
-      {err && !stats && (
-        <div className="card" style={{ borderColor: "var(--danger)", marginBottom: 18 }}>
-          <strong style={{ color: "var(--danger)" }}>Can&apos;t reach the analytics service.</strong>{" "}
-          <span style={{ color: "var(--ink-soft)" }}>It&apos;ll refresh automatically.</span>
-        </div>
-      )}
-
-      {err && stats && (
-        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12 }}>
-          ⟳ Showing last known data — reconnecting…
         </div>
       )}
 

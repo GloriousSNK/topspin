@@ -5,33 +5,43 @@ import { api } from "./api";
 import type { TrafficStats } from "./types";
 
 /*
- * Shared, memoised read of the self-hosted analytics. Several bits of the
- * landing page want the same live numbers (the marquee, the count-up band), so
- * we fetch once at the module level and hand the result to every caller instead
- * of firing a request per component.
+ * One live read of the self-hosted analytics, shared by every consumer.
+ *
+ * The landing marquee, the landing count-up band and the Insights dashboard all
+ * call this. They share a single module-level cache and a single 15s refresh
+ * loop, so they always render the *same* numbers — the count of videos analysed
+ * on the landing can never drift from the one on Insights.
  */
 
 let cache: TrafficStats | null = null;
-let inflight: Promise<TrafficStats | null> | null = null;
+const subscribers = new Set<(s: TrafficStats | null) => void>();
+let timer: ReturnType<typeof setInterval> | null = null;
 
-function load(): Promise<TrafficStats | null> {
-  if (cache) return Promise.resolve(cache);
-  if (!inflight) {
-    inflight = api
-      .stats()
-      .then((s) => { cache = s; return s; })
-      .catch(() => null)
-      .finally(() => { inflight = null; });
+async function refresh(): Promise<void> {
+  try {
+    cache = await api.stats();
+    for (const fn of subscribers) fn(cache);
+  } catch {
+    /* keep the last good value on a transient blip */
   }
-  return inflight;
 }
 
 export function useTrafficStats(): TrafficStats | null {
   const [stats, setStats] = useState<TrafficStats | null>(cache);
   useEffect(() => {
-    let alive = true;
-    load().then((s) => { if (alive && s) setStats(s); });
-    return () => { alive = false; };
+    subscribers.add(setStats);
+    setStats(cache); // sync to whatever the shared cache already holds
+    if (subscribers.size === 1) {
+      refresh();
+      timer = setInterval(refresh, 15000);
+    }
+    return () => {
+      subscribers.delete(setStats);
+      if (subscribers.size === 0 && timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
   }, []);
   return stats;
 }

@@ -25,7 +25,7 @@ export default function LiveMarquee() {
   const clips = stats?.videos_analyzed ?? FALLBACK_CLIPS;
 
   const items = [...FIXED];
-  items.splice(5, 0, `${clips.toLocaleString()} strokes analysed`);
+  items.splice(5, 0, `${clips.toLocaleString()} videos analysed`);
 
   return (
     <div className="lp-strip" aria-hidden="true">
