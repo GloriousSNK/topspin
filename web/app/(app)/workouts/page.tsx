@@ -65,7 +65,8 @@ export default function Workouts() {
   async function saveDrill(d: CatalogueDrill) {
     const ok = await saveCustomDrill({
       name: d.name, focus: d.focus, category: d.category, intensity: d.intensity,
-      sets: d.default_sets, reps: d.default_reps, steps: [], goal: d.category,
+      sets: d.default_sets, reps: d.default_reps, steps: d.steps ?? [], goal: d.category,
+      coaching_cue: d.coaching_cue, progression: d.progression,
     });
     if (ok) {
       setSavedIds((prev) => new Set(prev).add(d.id));
@@ -144,6 +145,24 @@ export default function Workouts() {
                   <span className="tag">{d.category}</span>
                 </div>
                 <div style={{ color: "var(--ink-soft)", fontSize: 13, margin: "5px 0 8px" }}>{d.focus}</div>
+
+                {d.coaching_cue && (
+                  <div style={{ fontSize: 13, color: "var(--green)", fontWeight: 600, marginBottom: 8 }}>💡 {d.coaching_cue}</div>
+                )}
+                {d.steps && d.steps.length > 0 && (
+                  <ol style={{ margin: "0 0 8px", paddingLeft: 18, color: "var(--ink-soft)", fontSize: 13, display: "flex", flexDirection: "column", gap: 3 }}>
+                    {d.steps.map((s, i) => <li key={i}>{s}</li>)}
+                  </ol>
+                )}
+                {d.progression && (
+                  <div style={{ fontSize: 12.5, color: "var(--ink-soft)", marginBottom: 8 }}>
+                    <span style={{ fontWeight: 600, color: "var(--ink)" }}>Level up:</span> {d.progression}
+                  </div>
+                )}
+                {d.equipment && d.equipment !== "none" && (
+                  <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 8 }}>🎾 {d.equipment}</div>
+                )}
+
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                   <span className="pill">{d.default_sets} × {d.default_reps}</span>
                   <span className="pill">{d.intensity}</span>

@@ -293,6 +293,7 @@ function WorkoutCard({ w }: { w: Workout }) {
               <span className="tag">{d.est_minutes}m</span>
             </div>
             <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 8 }}>{d.focus}</div>
+            {d.coaching_cue && <div style={{ color: "var(--green)", fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>💡 {d.coaching_cue}</div>}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               <span className="pill">{d.sets} × {d.reps}</span>
               <span className="pill">{d.intensity}</span>

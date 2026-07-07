@@ -106,6 +106,8 @@ export interface PrescribedDrill {
   targets: string[];
   est_minutes: number;
   priority: number;
+  coaching_cue?: string;
+  steps?: string[];
 }
 
 export interface Workout {
@@ -127,6 +129,9 @@ export interface CatalogueDrill {
   focus: string;
   default_sets: number;
   default_reps: number;
+  steps?: string[];
+  coaching_cue?: string;
+  progression?: string;
 }
 
 export interface GeneratedDrill {
@@ -138,6 +143,8 @@ export interface GeneratedDrill {
   reps: number;
   steps: string[];
   goal: string;
+  coaching_cue?: string;
+  progression?: string;
 }
 
 export interface TrafficStats {

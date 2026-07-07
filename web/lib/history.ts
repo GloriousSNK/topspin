@@ -103,27 +103,29 @@ export async function getCustomDrills(limit = 30): Promise<CustomDrillRow[]> {
   return (data as CustomDrillRow[]) ?? [];
 }
 
+// Row-level security already scopes writes to the owner (auth.uid() = user_id),
+// so we delete by id alone and let RLS enforce ownership. `.select()` makes the
+// call report success only when a row was actually removed — otherwise a policy
+// that silently matches zero rows would look like a success and the item would
+// reappear on the next load.
 export async function deleteCustomDrill(id: string): Promise<boolean> {
   if (!supabase) return false;
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return false;
-  const { error } = await supabase.from("custom_drills").delete().eq("id", id).eq("user_id", data.user.id);
-  return !error;
+  const { data, error } = await supabase
+    .from("custom_drills").delete().eq("id", id).select("id");
+  return !error && Array.isArray(data) && data.length > 0;
 }
 
 // Rename a saved workout/drill by patching the title/name inside the jsonb.
 export async function renameCustomDrill(id: string, title: string): Promise<boolean> {
   if (!supabase) return false;
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return false;
   const { data: existing } = await supabase
-    .from("custom_drills").select("drill").eq("id", id).eq("user_id", data.user.id).maybeSingle();
+    .from("custom_drills").select("drill").eq("id", id).maybeSingle();
   if (!existing) return false;
   const drill = existing.drill as Record<string, unknown>;
   const next = drill.kind === "workout" ? { ...drill, title } : { ...drill, name: title };
-  const { error } = await supabase
-    .from("custom_drills").update({ drill: next }).eq("id", id).eq("user_id", data.user.id);
-  return !error;
+  const { data, error } = await supabase
+    .from("custom_drills").update({ drill: next }).eq("id", id).select("id");
+  return !error && Array.isArray(data) && data.length > 0;
 }
 
 // --- public profiles (share your progress) ---------------------------------

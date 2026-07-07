@@ -14,6 +14,7 @@ export default function Stats() {
   const [load, setLoad] = useState(true);
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -37,9 +38,13 @@ export default function Stats() {
 
   async function removeSaved(id: string) {
     const prev = saved;
+    setNote(null);
     setSaved((s) => s.filter((r) => r.id !== id)); // optimistic
     const ok = await deleteCustomDrill(id);
-    if (!ok) setSaved(prev); // roll back on failure
+    if (!ok) {
+      setSaved(prev); // roll back so the UI stays honest
+      setNote("Couldn't delete that one. If it keeps coming back, your database is missing the delete policy — re-run supabase-setup.sql.");
+    }
   }
 
   async function renameSaved(id: string, title: string) {
@@ -139,6 +144,9 @@ export default function Stats() {
           {/* saved drills & workouts */}
           <div className="card" style={{ marginBottom: 18 }}>
             <div className="card-title">Saved drills & workouts</div>
+            {note && (
+              <p style={{ color: "var(--danger)", fontSize: 13, marginBottom: 12 }}>⚠ {note}</p>
+            )}
             {saved.length === 0 ? (
               <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>
                 Nothing saved yet. Search a drill or build a workout in <Link href="/workouts" style={{ color: "var(--court)" }}>Drills</Link> and hit Save.
@@ -205,10 +213,11 @@ export default function Stats() {
   );
 }
 
-interface WorkoutDrill { id?: string; name: string; focus?: string; category?: string; sets?: number; reps?: number; est_minutes?: number; intensity?: string; }
+interface WorkoutDrill { id?: string; name: string; focus?: string; category?: string; sets?: number; reps?: number; est_minutes?: number; intensity?: string; coaching_cue?: string; }
 interface SavedShape {
   kind?: string; name?: string; title?: string; focus?: string; category?: string; goal?: string; notes?: string;
-  intensity?: string; sets?: number; reps?: number; steps?: string[]; total_minutes?: number; level?: string; drills?: WorkoutDrill[];
+  intensity?: string; sets?: number; reps?: number; steps?: string[]; coaching_cue?: string; progression?: string;
+  total_minutes?: number; level?: string; drills?: WorkoutDrill[];
 }
 
 // A saved item is either a single drill or a whole workout (kind: "workout").
@@ -281,6 +290,7 @@ function SavedItem({ row, onDelete, onRename }: { row: CustomDrillRow; onDelete:
                       {x.est_minutes != null && <span className="tag">{x.est_minutes}m</span>}
                     </div>
                     {x.focus && <div style={{ color: "var(--ink-soft)", fontSize: 13, margin: "3px 0" }}>{x.focus}</div>}
+                    {x.coaching_cue && <div style={{ color: "var(--green)", fontSize: 12.5, fontWeight: 600, margin: "3px 0" }}>💡 {x.coaching_cue}</div>}
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {x.sets != null && <span className="pill">{x.sets} × {x.reps}</span>}
                       {x.intensity && <span className="pill">{x.intensity}</span>}
@@ -294,15 +304,21 @@ function SavedItem({ row, onDelete, onRename }: { row: CustomDrillRow; onDelete:
           ) : (
             <>
               {d.focus && <div style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 8 }}>{d.focus}</div>}
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: d.steps?.length ? 10 : 0 }}>
+              {d.coaching_cue && <div style={{ color: "var(--green)", fontSize: 13, fontWeight: 600, marginBottom: 8 }}>💡 {d.coaching_cue}</div>}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: (d.steps?.length || d.progression) ? 10 : 0 }}>
                 {d.sets != null && <span className="pill">{d.sets} × {d.reps}</span>}
                 {d.intensity && <span className="pill">{d.intensity}</span>}
                 {d.category && <span className="pill">{d.category}</span>}
               </div>
               {(d.steps ?? []).length > 0 && (
-                <ol style={{ margin: 0, paddingLeft: 18, color: "var(--ink-soft)", fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
+                <ol style={{ margin: "0 0 8px", paddingLeft: 18, color: "var(--ink-soft)", fontSize: 13, display: "flex", flexDirection: "column", gap: 4 }}>
                   {(d.steps ?? []).map((s, i) => <li key={i}>{s}</li>)}
                 </ol>
+              )}
+              {d.progression && (
+                <div style={{ fontSize: 12.5, color: "var(--ink-soft)" }}>
+                  <span style={{ fontWeight: 600, color: "var(--ink)" }}>Level up:</span> {d.progression}
+                </div>
               )}
             </>
           )}
