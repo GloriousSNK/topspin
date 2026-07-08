@@ -30,11 +30,19 @@ export async function saveSession(a: PoseAnalysis): Promise<void> {
   });
 }
 
+// IMPORTANT: this MUST filter by the current user's id. The `sessions` table has
+// a "public sessions read" RLS policy (so /u/<id> profiles work), which means an
+// unfiltered `select("*")` returns your rows UNION every public user's rows —
+// leaking other accounts' analyses into your private Stats/account views. RLS is
+// the backstop for *authorization*; the query still has to scope to the owner.
 export async function getSessions(limit = 60): Promise<SessionRow[]> {
   if (!supabase) return [];
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return [];
   const { data } = await supabase
     .from("sessions")
     .select("*")
+    .eq("user_id", u.user.id)
     .order("created_at", { ascending: false })
     .limit(limit);
   return (data as SessionRow[]) ?? [];
@@ -95,9 +103,15 @@ export async function saveWorkout(workout: Workout): Promise<boolean> {
 
 export async function getCustomDrills(limit = 30): Promise<CustomDrillRow[]> {
   if (!supabase) return [];
+  // custom_drills has no public read policy today, so RLS already scopes this to
+  // the owner — but we filter by user_id explicitly anyway, so a future public
+  // policy (like the one on sessions) can never silently turn this into a leak.
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return [];
   const { data } = await supabase
     .from("custom_drills")
     .select("id, created_at, drill")
+    .eq("user_id", u.user.id)
     .order("created_at", { ascending: false })
     .limit(limit);
   return (data as CustomDrillRow[]) ?? [];

@@ -19,6 +19,31 @@ dashboard route guard (**T8**) plus `join_squad` route rate-limiting, which land
 with the Phase 2 dashboard and squad-join UI. Login rate-limiting rides on
 Supabase's own auth throttling until the SSR migration.
 
+## Security-audit hardening (post-1b review)
+
+A red-team pass over the whole surface added these fixes:
+
+- **Consent self-clearing (was critical).** The 1a `account_consent` UPDATE
+  policy let the owner set `consent_status = 'not_required'`, so a `pending`
+  minor could clear their own guardian gate with one client-side update.
+  `account_consent` is now **read-only to the client**; every write goes through
+  the service-role consent routes. (supabase-coach-layer-1b.sql §B.)
+- **Self-approval loopholes.** The init route now rejects a guardian email equal
+  to the account's own email, and makes a `pending`/`approved` account **sticky**
+  — re-running the age gate can't downgrade it to `not_required`. You can only
+  move toward *more* protection.
+- **Cross-account read leak (was high).** `getSessions()`/`getCustomDrills()`
+  now filter by the owner id instead of trusting RLS alone — the sessions table's
+  "public sessions read" policy had made an unfiltered select return other
+  public users' rows. (web/lib/history.ts.)
+- **Account-switch state bleed.** The account and stats pages reset per-user
+  state on identity change, so a previous account's profile/rows can't linger.
+- **Misc:** approve-token length guard; on-device upload type/size guard.
+
+**Known, accepted low-severity:** `shares` allows anonymous inserts (public
+summary links) — a storage-spam vector, not a data-exposure one; bound it with a
+payload-size check + pruning if it's ever abused.
+
 ## What we store, and where the wall is
 
 | Data | Table | Who can read it |

@@ -37,15 +37,26 @@ alter table public.consent_tokens enable row level security;
 create index if not exists consent_tokens_user_idx on public.consent_tokens (user_id);
 
 -- ---------------------------------------------------------------------------
--- B. Harden account_consent INSERT (T5/T6): forbid self-inserting 'approved'.
+-- B. account_consent is READ-ONLY to the client; the service role owns writes.
 -- ---------------------------------------------------------------------------
--- The 1a insert policy only checked ownership, so a minor could have inserted a
--- row already marked 'approved' and bypassed the guardian gate entirely. Now a
--- user may only insert their own row in a NON-approved state; the flip to
--- 'approved' happens exclusively through the service role after token check.
-drop policy if exists "own consent write" on public.account_consent;
-create policy "own consent write" on public.account_consent for insert
-  with check (auth.uid() = user_id and consent_status in ('not_required', 'pending'));
+-- The 1a policies let the OWNER insert and update their own consent row. That
+-- is unsafe: the UPDATE policy's WITH CHECK permitted consent_status =
+-- 'not_required', so a minor whose account was 'pending' could bypass the whole
+-- guardian gate with a single client-side
+--     update account_consent set consent_status = 'not_required'
+-- (the flip to 'approved' was already blocked, but 'not_required' clears the
+-- gate just as effectively via consent_ok()).
+--
+-- All legitimate writes now go through the /api/consent/* route handlers, which
+-- use the service role (bypasses RLS) and derive the status server-side from a
+-- declared birth year. So the client needs NO write or update access at all.
+-- We drop both, leaving only the owner SELECT (kept from 1a) so the account
+-- page can display its own consent status. A client can no longer create,
+-- clear, or approve its own consent by any direct query.
+drop policy if exists "own consent write"  on public.account_consent;
+drop policy if exists "own consent update" on public.account_consent;
+-- ("own consent read" from supabase-coach-layer.sql stays as the only client
+--  policy; with RLS enabled and no insert/update policy, direct writes fail.)
 
 -- ---------------------------------------------------------------------------
 -- C. leave_squad() (T9): drop membership AND wipe this player's summaries.

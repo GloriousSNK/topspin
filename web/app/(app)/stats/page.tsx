@@ -18,6 +18,11 @@ export default function Stats() {
 
   useEffect(() => {
     let alive = true;
+    // Clear the prior account's rows on any user change (switch or sign-out) so
+    // they can't flash under the new session before the refetch resolves. This
+    // is a deliberate one-time reset keyed on identity, not a render-loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRows([]); setSaved([]); setLoad(true);
     if (!user) { setLoad(false); return; }
     Promise.all([getSessions(), getCustomDrills(50)]).then(([r, s]) => {
       if (!alive) return;

@@ -30,7 +30,11 @@ export async function POST(req: Request) {
   }
 
   const token = typeof body.token === "string" ? body.token : "";
-  if (!token) return NextResponse.json({ error: "Missing token." }, { status: 400 });
+  // Real tokens are ~43 url-safe chars; reject anything absurd before hashing so
+  // a giant body can't be used to burn CPU. A too-long value can't match anyway.
+  if (!token || token.length > 200) {
+    return NextResponse.json({ error: "Missing or malformed token." }, { status: 400 });
+  }
 
   const ok = await approveWithToken(token);
   if (!ok) {

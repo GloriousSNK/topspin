@@ -20,13 +20,20 @@ export const supabaseAdmin: SupabaseClient | null =
     : null;
 
 // Verify a caller's access token (from the Authorization: Bearer header) and
-// return their user id, or null if the token is missing/invalid/expired. This
-// is how a service-role route re-establishes "who is asking" before writing.
-export async function userIdFromBearer(authHeader: string | null): Promise<string | null> {
+// return their user id + email, or null if the token is missing/invalid/expired.
+// This is how a service-role route re-establishes "who is asking" before writing.
+export async function userFromBearer(
+  authHeader: string | null,
+): Promise<{ id: string; email: string | null } | null> {
   if (!supabaseAdmin) return null;
   const token = authHeader?.replace(/^Bearer\s+/i, "").trim();
   if (!token) return null;
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) return null;
-  return data.user.id;
+  return { id: data.user.id, email: data.user.email ?? null };
+}
+
+// Convenience wrapper for routes that only need the id.
+export async function userIdFromBearer(authHeader: string | null): Promise<string | null> {
+  return (await userFromBearer(authHeader))?.id ?? null;
 }

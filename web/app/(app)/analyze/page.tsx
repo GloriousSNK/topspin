@@ -27,6 +27,17 @@ export default function Analyze() {
     setResult(null);
     setWorkout(null);
     setShareUrl(null);
+    // Guard the drop path (the file dialog uses accept="video/*", but drag-drop
+    // bypasses it): reject non-videos and absurdly large files up front so we
+    // give a clear message instead of a cryptic decode error or a hung tab.
+    if (file.type && !file.type.startsWith("video/")) {
+      setErr("That doesn't look like a video. Use an mp4, mov, or webm clip.");
+      return;
+    }
+    if (file.size > 300 * 1024 * 1024) {
+      setErr("That clip is very large. Trim it to a few seconds and try again.");
+      return;
+    }
     setFilename(file.name);
     try {
       setBusy("Analysing your stroke… (first run loads the model)");
@@ -89,7 +100,7 @@ export default function Analyze() {
           </ul>
           <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8, fontSize: 14, color: "var(--ink-soft)" }}>
             <li>› <strong style={{ color: "var(--ink)" }}>Good light</strong>, and a plain-ish background helps.</li>
-            <li>› <strong style={{ color: "var(--ink)" }}>Steady camera</strong> — prop the phone up, don't pan.</li>
+            <li>› <strong style={{ color: "var(--ink)" }}>Steady camera</strong> — prop the phone up, don&apos;t pan.</li>
             <li>› <strong style={{ color: "var(--ink)" }}>Capture the finish</strong>, not just up to contact.</li>
           </ul>
         </div>

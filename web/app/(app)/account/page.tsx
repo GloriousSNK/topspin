@@ -36,11 +36,19 @@ export default function Account() {
   const [consentLoaded, setConsentLoaded] = useState(false);
 
   useEffect(() => {
+    // Reset every per-account field first so nothing from a previously
+    // signed-in account bleeds into this one. Without this, switching to an
+    // account that has no public profile would keep the prior user's display
+    // name / UTR / public-toggle in the form — and "Save details" would write
+    // them onto the new account. Deliberate one-time reset keyed on identity.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCount(null); setConsent(null); setConsentLoaded(false); setIsPublic(false); setDisplayName(""); setUtr(""); setUsta("");
     if (!user) return;
     let alive = true;
     getSessions(200).then((r) => { if (alive) setCount(r.length); });
     getMyProfile().then((p) => {
-      if (alive && p) { setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); setUtr(p.utr ?? ""); setUsta(p.usta ?? ""); }
+      if (!alive || !p) return;
+      setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); setUtr(p.utr ?? ""); setUsta(p.usta ?? "");
     });
     getMyConsent().then((c) => { if (alive) { setConsent(c); setConsentLoaded(true); } });
     return () => { alive = false; };
