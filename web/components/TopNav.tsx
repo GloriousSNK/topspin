@@ -13,9 +13,11 @@ export default function TopNav() {
 
   const links = [
     { href: "/analyze", label: "Analyse" },
+    { href: "/batch", label: "Batch" },
     { href: "/ball-lab", label: "Ball Lab" },
     { href: "/workouts", label: "Drills" },
     { href: "/stats", label: "Stats" },
+    ...(user ? [{ href: "/coach", label: "Coach" }] : []),
     { href: "/learn", label: "Learn" },
   ];
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));

@@ -9,6 +9,8 @@
 // response, a minor could read their own guardian's link and self-approve,
 // which is exactly the gate we're enforcing (threat-model T6).
 
+import "server-only";
+
 const FROM = process.env.CONSENT_EMAIL_FROM ?? "TopSpin <onboarding@resend.dev>";
 
 export async function sendGuardianConsentEmail(to: string, approveUrl: string): Promise<boolean> {

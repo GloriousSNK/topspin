@@ -77,17 +77,14 @@ export function normalizeSquadCode(code: string): string {
 }
 
 // --- Client callers ---------------------------------------------------------
-// Each POSTs to a route handler with the caller's Supabase access token so the
-// server can verify who they are before writing with the service role.
+// Each POSTs to a route handler. The server verifies the cookie-backed session
+// before performing any service-role write.
 async function authedPost(path: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
   if (!supabase) return { ok: false, error: "Accounts are not configured." };
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) return { ok: false, error: "Please sign in first." };
   try {
     const res = await fetch(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -110,15 +107,18 @@ export interface ConsentRow {
 }
 
 // Reads the caller's own consent row (RLS already scopes this to the owner).
-export async function getMyConsent(): Promise<ConsentRow | null> {
+export async function getMyConsent(expectedUserId: string): Promise<ConsentRow | null> {
   if (!supabase) return null;
   const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return null;
-  const { data } = await supabase
+  if (u.user?.id !== expectedUserId) return null;
+  const { data, error } = await supabase
     .from("account_consent")
     .select("user_id, birth_year, guardian_email, consent_status, requested_at, approved_at")
-    .eq("user_id", u.user.id)
+    .eq("user_id", expectedUserId)
     .maybeSingle();
+  if (error) throw error;
+  const { data: current } = await supabase.auth.getUser();
+  if (current.user?.id !== expectedUserId) return null;
   return (data as ConsentRow) ?? null;
 }
 

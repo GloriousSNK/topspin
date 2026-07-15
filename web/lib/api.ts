@@ -10,7 +10,8 @@ import type {
   GeneratedDrill,
 } from "./types";
 
-const BASE = process.env.NEXT_PUBLIC_ML_URL ?? "http://127.0.0.1:8000";
+const BASE = process.env.NEXT_PUBLIC_ML_URL
+  ?? (process.env.NODE_ENV === "production" ? "https://tennis-ml.onrender.com" : "http://127.0.0.1:8000");
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

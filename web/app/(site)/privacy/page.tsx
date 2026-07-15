@@ -26,7 +26,7 @@ export default function Privacy() {
         <p style={{ fontSize: 17, color: "var(--ink-soft)", lineHeight: 1.65, marginBottom: 36 }}>
           You can use every part of TopSpin — analysis, drills, the Ball Lab, stats — with no
           account at all, and if you do, we still collect nothing personal beyond what you give us.
-          No cookies, no third-party trackers, no ad networks. Accounts are optional, and exist
+          No ad trackers or analytics cookies. Signed-in accounts use essential session cookies. Accounts are optional, and exist
           mainly so a player can <em>choose</em> to connect with a coach. Here&apos;s exactly
           what&apos;s stored, and when.
         </p>
@@ -43,7 +43,7 @@ export default function Privacy() {
         <Section title="What we never collect">
           <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
             <li>• No personal data at all unless you choose to make an account.</li>
-            <li>• No cookies and no third-party analytics, ads, or social pixels.</li>
+            <li>• No advertising cookies and no third-party analytics, ads, or social pixels. Essential authentication cookies are used only while you&apos;re signed in.</li>
             <li>• No <strong style={{ color: "var(--ink)" }}>IP addresses stored</strong>. Your IP is used for a split second to rate-limit abuse, then discarded.</li>
             <li>• No mouse movement, scroll tracking, keystrokes, or device fingerprinting.</li>
           </ul>
@@ -55,16 +55,15 @@ export default function Privacy() {
           below — never a full date of birth), and the
           <strong style={{ color: "var(--ink)" }}> analyses you save</strong> (stroke, form score, flaws, serve
           estimate) so you can track progress. Auth is handled by Supabase. We don&apos;t see or store your
-          password, and we never sell or share any of it. You can delete all your saved analyses from the
-          account page at any time.
+          password, and we never sell or share any of it. You can delete saved analyses or permanently delete the account from the account page.
         </Section>
 
         <Section title="Coaches, squads & connecting with one">
           A coach connection is <strong style={{ color: "var(--ink)" }}>opt-in</strong>. If you enter a
           coach&apos;s squad code, only a <strong style={{ color: "var(--ink)" }}>summary</strong> of your
           practice syncs to them — form scores, drills completed, and dates. Your video and full stroke
-          breakdown stay on your device; sending a specific clip to a coach is always a separate, deliberate
-          choice, never automatic. Leaving the squad or deleting your account stops the sync and removes the
+          breakdown stays private; sending a specific analysis breakdown to a coach is always a separate,
+          deliberate choice. The clip itself stays on your device. Leaving the squad or deleting your account stops the sync and removes the
           summary data we held for that connection.
         </Section>
 
@@ -89,6 +88,13 @@ export default function Privacy() {
           you&apos;re happy to hand out the link.
         </Section>
 
+        <Section title="Coach notes and parent reports">
+          A linked coach can add a short note only to an analysis you deliberately shared with that coach.
+          Coaches can also create a report containing recent summary scores and practice counts. Reports
+          use long, unguessable links and expire after 30 days. Anyone holding a report link can open it,
+          so handle it like any other private link.
+        </Section>
+
         <Section title="Where the data lives">
           Traffic counts sit in our own database; account data sits in Supabase. No analytics SaaS is in
           the loop. Anonymous traffic records are capped and old ones are pruned automatically.
@@ -97,7 +103,7 @@ export default function Privacy() {
         <Section title="Your control">
           Browsing anonymously, the only identifier lives in your browser, so you can reset it by clearing
           local storage. With an account, you can wipe your saved analyses from the account page, and ask
-          us to remove your account entirely.
+          permanently delete the account and its synced data from the account page.
         </Section>
 
         <Section title="Changes">

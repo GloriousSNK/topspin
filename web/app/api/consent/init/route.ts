@@ -8,16 +8,22 @@
 // after verifying the caller's own access token.
 
 import { NextResponse } from "next/server";
-import { supabaseAdmin, userFromBearer } from "@/lib/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getServerUser } from "@/lib/supabaseServer";
 import { consentStatusForBirthYear, isPlausibleBirthYear } from "@/lib/consent";
 import { issueGuardianToken } from "@/lib/consentServer";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
+import { assertTrustedMutation, readBoundedJson, RequestSecurityError } from "@/lib/requestSecurity";
 
 export const runtime = "nodejs";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: Request) {
+  try { assertTrustedMutation(req); } catch (error) {
+    const e = error as RequestSecurityError;
+    return NextResponse.json({ error: e.message }, { status: e.status ?? 403 });
+  }
   if (!supabaseAdmin) {
     return NextResponse.json({ error: "Accounts are not configured." }, { status: 503 });
   }
@@ -25,15 +31,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
   }
 
-  const user = await userFromBearer(req.headers.get("authorization"));
+  const user = await getServerUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const userId = user.id;
 
   let body: { birthYear?: unknown; guardianEmail?: unknown };
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Bad request." }, { status: 400 });
+    body = await readBoundedJson(req);
+  } catch (error) {
+    const e = error as RequestSecurityError;
+    return NextResponse.json({ error: e.message }, { status: e.status ?? 400 });
   }
 
   const birthYear = Number(body.birthYear);
@@ -41,25 +48,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Enter a valid birth year." }, { status: 400 });
   }
 
-  // Sticky gate: once an account is 'pending' or 'approved', init can't quietly
-  // downgrade it to 'not_required' by re-declaring an adult birth year. This
-  // stops a minor from re-running the age gate to escape a pending guardian
-  // requirement. (The UI only shows the gate when no row exists, so a genuine
-  // first-time user is unaffected.) You can always move TOWARD more protection.
-  const { data: existing } = await supabaseAdmin
-    .from("account_consent")
-    .select("consent_status")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (existing && (existing.consent_status === "pending" || existing.consent_status === "approved")) {
-    return NextResponse.json({ status: existing.consent_status });
-  }
-
-  const status = consentStatusForBirthYear(birthYear);
+  const requestedStatus = consentStatusForBirthYear(birthYear);
   const guardianEmailRaw = typeof body.guardianEmail === "string" ? body.guardianEmail.trim() : "";
   const guardianEmail = guardianEmailRaw.toLowerCase();
 
-  if (status === "pending") {
+  if (requestedStatus === "pending") {
     if (!EMAIL_RE.test(guardianEmail)) {
       return NextResponse.json(
         { error: "A parent or guardian's email is needed to finish setting up this account." },
@@ -76,23 +69,24 @@ export async function POST(req: Request) {
     }
   }
 
-  // Upsert the consent row. We never write 'approved' here — only the guardian
-  // approval route can do that.
-  const { error } = await supabaseAdmin.from("account_consent").upsert(
-    {
-      user_id: userId,
-      birth_year: birthYear,
-      guardian_email: status === "pending" ? guardianEmail : null,
-      consent_status: status,
-    },
-    { onConflict: "user_id" },
-  );
-  if (error) return NextResponse.json({ error: "Couldn't save. Try again." }, { status: 500 });
+  const { data, error } = await supabaseAdmin.rpc("initialize_account_consent", {
+    p_user_id: userId,
+    p_birth_year: birthYear,
+    p_guardian_email: requestedStatus === "pending" ? guardianEmail : null,
+  });
+  if (error || typeof data !== "string") {
+    return NextResponse.json({ error: "Couldn't save. Try again." }, { status: 500 });
+  }
+  const status = data;
 
-  if (status === "pending") {
-    // Fire the guardian request. Even if the email dispatch fails, the account
-    // is correctly 'pending' and the player can re-send from their account page.
-    await issueGuardianToken(userId, guardianEmail);
+  if (status === "pending" && requestedStatus === "pending") {
+    const sent = await issueGuardianToken(userId, guardianEmail);
+    if (!sent) {
+      return NextResponse.json(
+        { error: "Your age was saved, but the approval email could not be sent. Try resend shortly." },
+        { status: 502 },
+      );
+    }
   }
 
   return NextResponse.json({ status });

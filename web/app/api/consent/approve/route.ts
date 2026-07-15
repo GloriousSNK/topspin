@@ -9,10 +9,15 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { approveWithToken } from "@/lib/consentServer";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
+import { assertTrustedMutation, readBoundedJson, RequestSecurityError } from "@/lib/requestSecurity";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  try { assertTrustedMutation(req); } catch (error) {
+    const e = error as RequestSecurityError;
+    return NextResponse.json({ error: e.message }, { status: e.status ?? 403 });
+  }
   if (!supabaseAdmin) {
     return NextResponse.json({ error: "Accounts are not configured." }, { status: 503 });
   }
@@ -24,9 +29,10 @@ export async function POST(req: Request) {
 
   let body: { token?: unknown };
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Bad request." }, { status: 400 });
+    body = await readBoundedJson(req);
+  } catch (error) {
+    const e = error as RequestSecurityError;
+    return NextResponse.json({ error: e.message }, { status: e.status ?? 400 });
   }
 
   const token = typeof body.token === "string" ? body.token : "";

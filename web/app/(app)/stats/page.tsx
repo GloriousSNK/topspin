@@ -1,32 +1,38 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { getSessions, getCustomDrills, deleteCustomDrill, renameCustomDrill, type SessionRow, type CustomDrillRow } from "@/lib/history";
 import { api } from "@/lib/api";
 import type { Workout } from "@/lib/types";
+import { practiceDayStreak } from "@/lib/coachLogic";
+import { deleteLocalDrill, getLocalDrills, getLocalPracticeCompletions, getLocalSessions, renameLocalDrill } from "@/lib/localHistory";
+import { getPracticeCompletions, type PracticeCompletion } from "@/lib/coach";
 
 export default function Stats() {
-  const { user, enabled, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [rows, setRows] = useState<SessionRow[]>([]);
   const [saved, setSaved] = useState<CustomDrillRow[]>([]);
+  const [practice, setPractice] = useState<PracticeCompletion[]>([]);
   const [load, setLoad] = useState(true);
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const activeUserId = useRef<string | null>(user?.id ?? null);
 
   useEffect(() => {
+    activeUserId.current = user?.id ?? null;
     let alive = true;
     // Clear the prior account's rows on any user change (switch or sign-out) so
     // they can't flash under the new session before the refetch resolves. This
     // is a deliberate one-time reset keyed on identity, not a render-loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRows([]); setSaved([]); setLoad(true);
-    if (!user) { setLoad(false); return; }
-    Promise.all([getSessions(), getCustomDrills(50)]).then(([r, s]) => {
+    setRows([]); setSaved([]); setPractice([]); setLoad(true);
+    if (!user) { setRows(getLocalSessions()); setSaved(getLocalDrills()); setPractice(getLocalPracticeCompletions()); setLoad(false); return; }
+    Promise.all([getSessions(user.id), getCustomDrills(user.id, 50), getPracticeCompletions(user.id)]).then(([r, s, p]) => {
       if (!alive) return;
-      setRows(r); setSaved(s); setLoad(false);
+      setRows(r); setSaved(s); setPractice(p); setLoad(false);
     });
     return () => { alive = false; };
   }, [user]);
@@ -42,10 +48,13 @@ export default function Stats() {
   }, [rows]);
 
   async function removeSaved(id: string) {
+    if (!user) { deleteLocalDrill(id); setSaved((s) => s.filter((r) => r.id !== id)); return; }
+    const ownerId = user.id;
     const prev = saved;
     setNote(null);
     setSaved((s) => s.filter((r) => r.id !== id)); // optimistic
-    const ok = await deleteCustomDrill(id);
+    const ok = await deleteCustomDrill(id, ownerId);
+    if (activeUserId.current !== ownerId) return;
     if (!ok) {
       setSaved(prev); // roll back so the UI stays honest
       setNote("Couldn't delete that one. If it keeps coming back, your database is missing the delete policy — re-run supabase-setup.sql.");
@@ -53,13 +62,24 @@ export default function Stats() {
   }
 
   async function renameSaved(id: string, title: string) {
+    if (!user) {
+      renameLocalDrill(id, title);
+      setSaved((s) => s.map((r) => {
+        if (r.id !== id) return r;
+        const d = r.drill as unknown as Record<string, unknown>;
+        return { ...r, drill: (d.kind === "workout" ? { ...d, title } : { ...d, name: title }) as unknown as CustomDrillRow["drill"] };
+      }));
+      return;
+    }
+    const ownerId = user.id;
     const prev = saved;
     setSaved((s) => s.map((r) => {
       if (r.id !== id) return r;
       const d = r.drill as unknown as Record<string, unknown>;
       return { ...r, drill: (d.kind === "workout" ? { ...d, title } : { ...d, name: title }) as unknown as CustomDrillRow["drill"] };
     }));
-    const ok = await renameCustomDrill(id, title);
+    const ok = await renameCustomDrill(id, title, ownerId);
+    if (activeUserId.current !== ownerId) return;
     if (!ok) setSaved(prev); // roll back if the write was rejected
   }
 
@@ -71,22 +91,21 @@ export default function Stats() {
     } finally { setBusy(false); }
   }
 
-  if (!enabled) return <Msg title="Stats" body="Accounts aren't connected on this copy of the app — add the Supabase keys to web/.env.local to enable sign-in and saved stats." />;
   if (loading || load) return <h1 className="h1">Stats</h1>;
-  if (!user) return <Msg title="Stats" body="Sign in to track your form and save drills." cta />;
 
   const scored = rows.filter((r) => typeof r.form_score === "number");
   const avg = scored.length ? Math.round(scored.reduce((s, r) => s + r.form_score, 0) / scored.length) : 0;
   const best = scored.reduce((m, r) => Math.max(m, r.form_score), 0);
   const chrono = [...scored].reverse();
   const recent = scored.length ? scored[0].form_score : 0; // most recent form
-  const nothing = rows.length === 0 && saved.length === 0;
+  const streak = practiceDayStreak([...rows.map((r) => r.created_at), ...practice.map((p) => p.completed_at)]);
+  const nothing = rows.length === 0 && saved.length === 0 && practice.length === 0;
 
   return (
     <div>
       <span className="eyebrow">Your numbers</span>
       <h1 className="h1">Stats</h1>
-      <p className="lead">{rows.length} analyses · {saved.length} saved. Watch your form climb and keep your drills in one place.</p>
+      <p className="lead">{rows.length} analyses · {saved.length} saved. {user ? "Synced to your account." : "Kept only in this browser."}</p>
 
       {nothing ? (
         <div className="card"><p style={{ color: "var(--ink-soft)" }}>
@@ -118,7 +137,19 @@ export default function Stats() {
             <Stat v={avg} l="Average form" accent />
             <Stat v={best} l="Best form" />
             <Stat v={saved.length} l="Saved drills" />
+            <Stat v={streak} l="Practice-day streak" />
+            <Stat v={practice.length} l="Practice sessions" />
           </div>
+
+          {practice.length > 0 && <div className="card" style={{ marginBottom: 18 }}>
+            <div className="card-title">Completed practice</div>
+            <div className="grid grid-2">
+              {practice.slice(0, 6).map((p) => <div key={p.id} className="subcard">
+                <strong>{p.title}</strong>
+                <div style={{ color: "var(--ink-soft)", fontSize: 12, marginTop: 5 }}>{p.drills_completed} drills · {new Date(p.completed_at).toLocaleDateString()}</div>
+              </div>)}
+            </div>
+          </div>}
 
           {chrono.length >= 2 && (
             <div className="lp-panel" style={{ marginBottom: 18 }}>
@@ -337,9 +368,4 @@ function Stat({ v, l, accent }: { v: number; l: string; accent?: boolean }) {
   return <div className="card" style={{ padding: 16 }}><div className="stat">
     <span className="stat-value" style={{ fontSize: 24, color: accent ? "var(--court)" : "var(--ink)" }}>{v}</span>
     <span className="stat-label">{l}</span></div></div>;
-}
-
-function Msg({ title, body, cta }: { title: string; body: string; cta?: boolean }) {
-  return <div><h1 className="h1">{title}</h1><p className="lead">{body}</p>
-    {cta && <Link href="/account" className="btn">Sign in</Link>}</div>;
 }

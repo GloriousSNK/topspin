@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import type { Session, User, SupabaseClient } from "@supabase/supabase-js";
+import type { User, SupabaseClient } from "@supabase/supabase-js";
 
 interface AuthState {
   user: User | null;
@@ -9,6 +9,7 @@ interface AuthState {
   enabled: boolean;
   signUp: (email: string, password: string) => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<string | null>;
+  signInWithMagicLink: (email: string) => Promise<string | null>;
   signInWithGoogle: () => Promise<void>;
   resend: (email: string) => Promise<string | null>;
   signOut: () => Promise<void>;
@@ -34,6 +35,7 @@ const Ctx = createContext<AuthState>({
   user: null, loading: true, enabled: false,
   signUp: async () => notConfigured,
   signIn: async () => notConfigured,
+  signInWithMagicLink: async () => notConfigured,
   signInWithGoogle: async () => {},
   resend: async () => notConfigured,
   signOut: async () => {},
@@ -54,16 +56,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clientRef = useRef<SupabaseClient | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- env config is external state
     if (!enabled) { setLoading(false); return; }
+    // Remove retired localStorage token copies from the pre-SSR auth client.
+    for (const key of Object.keys(window.localStorage)) {
+      if (/^sb-.*-auth-token(?:\.|$)/.test(key)) window.localStorage.removeItem(key);
+    }
     let alive = true;
     let unsub = () => {};
     loadClient().then((sb) => {
       if (!alive) return;
       clientRef.current = sb;
       if (!sb) { setLoading(false); return; }
-      sb.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
+      sb.auth.getUser().then(({ data }) => {
         if (!alive) return;
-        setUser(data.session?.user ?? null);
+        setUser(data.user ?? null);
         setLoading(false);
       });
       const { data: sub } = sb.auth.onAuthStateChange((_e, s) => { if (alive) setUser(s?.user ?? null); });
@@ -73,20 +80,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const origin = () => (typeof window !== "undefined" ? window.location.origin : "");
+  const callback = () => `${origin()}/auth/callback?next=/account`;
   const client = async () => clientRef.current ?? (await loadClient());
 
   const signUp = async (email: string, password: string) => {
     const sb = await client();
     if (!sb) return notConfigured;
     const { error } = await sb.auth.signUp({
-      email, password, options: { emailRedirectTo: `${origin()}/account` },
+      email, password, options: { emailRedirectTo: callback() },
     });
     return error ? friendly(error.message) : null;
   };
   const signIn = async (email: string, password: string) => {
     const sb = await client();
     if (!sb) return notConfigured;
+    setUser(null);
     const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      const { data } = await sb.auth.getUser();
+      setUser(data.user ?? null);
+    }
+    return error ? friendly(error.message) : null;
+  };
+  const signInWithMagicLink = async (email: string) => {
+    const sb = await client();
+    if (!sb) return notConfigured;
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: callback() },
+    });
     return error ? friendly(error.message) : null;
   };
   const signInWithGoogle = async () => {
@@ -94,19 +116,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!sb) return;
     await sb.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${origin()}/account` },
+      options: { redirectTo: callback() },
     });
   };
   const resend = async (email: string) => {
     const sb = await client();
     if (!sb) return notConfigured;
-    const { error } = await sb.auth.resend({ type: "signup", email });
+    const { error } = await sb.auth.resend({
+      type: "signup", email, options: { emailRedirectTo: callback() },
+    });
     return error ? friendly(error.message) : null;
   };
-  const signOut = async () => { const sb = await client(); await sb?.auth.signOut(); };
+  const signOut = async () => {
+    const sb = await client();
+    const { error } = await sb?.auth.signOut() ?? { error: null };
+    if (!error) setUser(null);
+  };
 
   return (
-    <Ctx.Provider value={{ user, loading, enabled, signUp, signIn, signInWithGoogle, resend, signOut }}>
+    <Ctx.Provider value={{ user, loading, enabled, signUp, signIn, signInWithMagicLink, signInWithGoogle, resend, signOut }}>
       {children}
     </Ctx.Provider>
   );

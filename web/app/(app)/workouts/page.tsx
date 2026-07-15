@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { Workout, CatalogueDrill } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
 import { saveCustomDrill, saveWorkout } from "@/lib/history";
+import { completePractice } from "@/lib/coach";
+import { completeLocalPractice, saveLocalDrill, saveLocalWorkout } from "@/lib/localHistory";
 
 const GOALS = ["all_round", "consistency", "power", "footwork", "serve", "volley"];
 const LEVELS = ["beginner", "intermediate", "advanced"];
@@ -35,10 +37,21 @@ export default function Workouts() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [workoutSaved, setWorkoutSaved] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [savingWorkout, setSavingWorkout] = useState(false);
+  const [workoutCompleted, setWorkoutCompleted] = useState(false);
+  const activeUserId = useRef<string | null>(user?.id ?? null);
 
   useEffect(() => {
     api.catalogue().then((r) => setCatalogue(r.drills)).catch((e) => setErr(String(e)));
   }, []);
+
+  useEffect(() => {
+    activeUserId.current = user?.id ?? null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- saved state belongs to one account only
+    setSavedIds(new Set()); setWorkoutSaved(false); setWorkoutCompleted(false); setSaveMsg(null);
+    setSavingIds(new Set()); setSavingWorkout(false);
+  }, [user?.id]);
 
   const results = useMemo(() => {
     const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
@@ -52,7 +65,7 @@ export default function Workouts() {
   }, [query, catalogue]);
 
   async function generate() {
-    setBusy(true); setErr(null); setWorkoutSaved(false);
+    setBusy(true); setErr(null); setWorkoutSaved(false); setWorkoutCompleted(false);
     try {
       setWorkout(await api.workoutByGoal(goal, level, minutes));
     } catch (e) {
@@ -63,11 +76,17 @@ export default function Workouts() {
   }
 
   async function saveDrill(d: CatalogueDrill) {
-    const ok = await saveCustomDrill({
+    if (savingIds.has(d.id)) return;
+    const ownerId = user?.id ?? null;
+    setSavingIds((current) => new Set(current).add(d.id));
+    const drill = {
       name: d.name, focus: d.focus, category: d.category, intensity: d.intensity,
       sets: d.default_sets, reps: d.default_reps, steps: d.steps ?? [], goal: d.category,
       coaching_cue: d.coaching_cue, progression: d.progression,
-    });
+    };
+    const ok = ownerId ? await saveCustomDrill(drill, ownerId) : !!saveLocalDrill(drill);
+    if (activeUserId.current !== ownerId) return;
+    setSavingIds((current) => { const next = new Set(current); next.delete(d.id); return next; });
     if (ok) {
       setSavedIds((prev) => new Set(prev).add(d.id));
       setSaveMsg({ ok: true, text: "Saved to your Stats page." });
@@ -77,12 +96,29 @@ export default function Workouts() {
   }
 
   async function saveGoalWorkout() {
-    if (!workout) return;
-    const ok = await saveWorkout(workout);
+    if (!workout || savingWorkout) return;
+    const ownerId = user?.id ?? null;
+    setSavingWorkout(true);
+    const ok = ownerId ? await saveWorkout(workout, ownerId) : !!saveLocalWorkout(workout);
+    if (activeUserId.current !== ownerId) return;
+    setSavingWorkout(false);
     setWorkoutSaved(ok);
     setSaveMsg(ok
       ? { ok: true, text: "Workout saved to your Stats page." }
       : { ok: false, text: "Couldn't save — make sure you're signed in and try again." });
+  }
+
+  async function completeGoalWorkout() {
+    if (!workout || workoutCompleted) return;
+    const ownerId = user?.id ?? null;
+    const ok = ownerId
+      ? await completePractice(ownerId, workout.title, workout.drills.length)
+      : !!completeLocalPractice(workout.title, workout.drills.length);
+    if (activeUserId.current !== ownerId) return;
+    setWorkoutCompleted(ok);
+    setSaveMsg(ok
+      ? { ok: true, text: "Practice marked complete and added to your Stats." }
+      : { ok: false, text: "Couldn't record that session. Join a squad and check your account setup." });
   }
 
   return (
@@ -166,12 +202,10 @@ export default function Workouts() {
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                   <span className="pill">{d.default_sets} × {d.default_reps}</span>
                   <span className="pill">{d.intensity}</span>
-                  {user && (
-                    <button className="btn btn-ghost" style={{ marginLeft: "auto", padding: "5px 12px", fontSize: 12 }}
-                      onClick={() => saveDrill(d)} disabled={savedIds.has(d.id)}>
-                      {savedIds.has(d.id) ? "✓ Saved" : "Save"}
-                    </button>
-                  )}
+                  <button className="btn btn-ghost" style={{ marginLeft: "auto", padding: "5px 12px", fontSize: 12 }}
+                    onClick={() => saveDrill(d)} disabled={savedIds.has(d.id) || savingIds.has(d.id)}>
+                    {savedIds.has(d.id) ? "✓ Saved" : savingIds.has(d.id) ? "Saving…" : "Save"}
+                  </button>
                 </div>
               </div>
             ))}
@@ -183,13 +217,14 @@ export default function Workouts() {
         <div className="card" style={{ marginBottom: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
             <div className="card-title" style={{ marginBottom: 0 }}>{workout.title} · {workout.total_minutes} min · {workout.level}</div>
-            {user ? (
-              <button className="btn btn-ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={saveGoalWorkout} disabled={workoutSaved}>
-                {workoutSaved ? "✓ Saved" : "Save workout"}
-              </button>
-            ) : (
-              <a href="/account" style={{ fontSize: 12, color: "var(--court)", fontWeight: 600 }}>Sign in to save</a>
-            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="btn btn-ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={saveGoalWorkout} disabled={workoutSaved || savingWorkout}>
+                  {workoutSaved ? "✓ Saved" : savingWorkout ? "Saving…" : "Save workout"}
+                </button>
+                <button className="btn" style={{ padding: "6px 14px", fontSize: 13 }} onClick={completeGoalWorkout} disabled={workoutCompleted}>
+                  {workoutCompleted ? "Practice complete" : "Mark practice complete"}
+                </button>
+              </div>
           </div>
           <div className="grid grid-2">
             {workout.drills.map((d) => (

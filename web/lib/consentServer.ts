@@ -1,10 +1,12 @@
 // Server-side consent helpers shared by the /api/consent/* route handlers.
 // SERVER-ONLY (imports the service-role client). Never import from client code.
 
+import "server-only";
 import { supabaseAdmin } from "./supabaseAdmin";
 import { generateConsentToken, hashConsentToken } from "./consent";
 import { sendGuardianConsentEmail } from "./email";
 import { SITE_URL } from "./site";
+import { buildConsentApprovalUrl } from "./consentLink";
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -19,21 +21,12 @@ export async function issueGuardianToken(userId: string, guardianEmail: string):
   const tokenHash = await hashConsentToken(raw);
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
 
-  // One live token at a time: drop any earlier unused ones for this user so a
-  // stale link can't be used after a re-send.
-  await supabaseAdmin.from("consent_tokens").delete().eq("user_id", userId).is("used_at", null);
+  const { data: issued, error } = await supabaseAdmin.rpc("issue_consent_token", {
+    p_user_id: userId, p_token_hash: tokenHash, p_expires_at: expiresAt,
+  });
+  if (error || issued !== true) return false;
 
-  const { error } = await supabaseAdmin
-    .from("consent_tokens")
-    .insert({ user_id: userId, token_hash: tokenHash, expires_at: expiresAt });
-  if (error) return false;
-
-  await supabaseAdmin
-    .from("account_consent")
-    .update({ requested_at: new Date().toISOString() })
-    .eq("user_id", userId);
-
-  const approveUrl = `${SITE_URL}/consent/${raw}`;
+  const approveUrl = buildConsentApprovalUrl(SITE_URL, raw);
   return sendGuardianConsentEmail(guardianEmail, approveUrl);
 }
 
@@ -45,27 +38,6 @@ export async function approveWithToken(rawToken: string): Promise<boolean> {
   if (!supabaseAdmin) return false;
 
   const tokenHash = await hashConsentToken(rawToken);
-  const { data: tok } = await supabaseAdmin
-    .from("consent_tokens")
-    .select("id, user_id, expires_at, used_at")
-    .eq("token_hash", tokenHash)
-    .maybeSingle();
-
-  if (!tok || tok.used_at || new Date(tok.expires_at).getTime() < Date.now()) return false;
-
-  // Burn the token first (single-use): mark used and only for a still-unused row
-  // so two concurrent redemptions can't both win.
-  const { data: burned } = await supabaseAdmin
-    .from("consent_tokens")
-    .update({ used_at: new Date().toISOString() })
-    .eq("id", tok.id)
-    .is("used_at", null)
-    .select("id");
-  if (!burned || burned.length === 0) return false;
-
-  const { error } = await supabaseAdmin
-    .from("account_consent")
-    .update({ consent_status: "approved", approved_at: new Date().toISOString() })
-    .eq("user_id", tok.user_id);
-  return !error;
+  const { data, error } = await supabaseAdmin.rpc("redeem_consent_token", { p_token_hash: tokenHash });
+  return !error && data === true;
 }

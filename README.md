@@ -38,9 +38,36 @@ show a "can't reach the service" note until it's up.
 
 ## Notes
 
-- Analytics are self-hosted and anonymous: no cookies, no third parties, nothing
-  tied to a person. See the Privacy page in the app.
+- Analytics are self-hosted and anonymous: no advertising cookies, no third
+  parties, and nothing tied to a person. Signed-in accounts use essential
+  Supabase session cookies. See the Privacy page in the app.
 - Locally the backend uses SQLite. In production, set `DATABASE_URL` to a Postgres
   connection string and it switches over automatically so the numbers persist.
 - The physics (drag, Magnus, the chaos/sensitivity analysis) is the real thing.
   Pose analysis is an honest, single-camera read, not a biomechanics lab.
+## Database setup
+
+Run the Supabase migrations in this order:
+
+1. `supabase-setup.sql`
+2. `supabase-coach-layer.sql`
+3. `supabase-coach-layer-1b.sql`
+4. `supabase-security-hardening.sql`
+5. `supabase-complete-app.sql`
+
+The final migration adds account roles, squads, database-backed squad-code throttling,
+minimal player summary sync, coach rosters, private analysis shares and notes, expiring
+parent reports, and complete squad cleanup. Code that depends on it fails closed until
+the migration is applied.
+
+Server-side account deletion and guardian email require these Vercel variables in
+addition to the two public Supabase variables:
+
+```text
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+RESEND_API_KEY
+EMAIL_FROM
+```
+
+Do not prefix the service-role key with `NEXT_PUBLIC_`.

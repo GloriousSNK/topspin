@@ -4,8 +4,12 @@ const isDev = process.env.NODE_ENV !== "production";
 
 // Derive the allowed ML/analytics origin from the SAME env var the client
 // fetches, so the CSP allowlist and the fetch base can never drift apart.
-const ML = process.env.NEXT_PUBLIC_ML_URL ?? "http://127.0.0.1:8000";
-const ML_ORIGINS = `${ML} http://127.0.0.1:8000 http://localhost:8000`;
+const ML = process.env.NEXT_PUBLIC_ML_URL ?? (isDev ? "http://127.0.0.1:8000" : "https://tennis-ml.onrender.com");
+const ML_ORIGINS = isDev ? `${ML} http://127.0.0.1:8000 http://localhost:8000` : ML;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseOrigins = supabaseUrl
+  ? `${new URL(supabaseUrl).origin} ${new URL(supabaseUrl).origin.replace(/^http/, "ws")}`
+  : "";
 
 // Origins the in-browser pose model needs: WASM from jsDelivr, model from GCS.
 const POSE_ORIGINS = "https://cdn.jsdelivr.net https://storage.googleapis.com";
@@ -25,7 +29,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   scriptSrc,
   "font-src 'self' data:",
-  `connect-src 'self' ${ML_ORIGINS} ${POSE_ORIGINS} https://*.supabase.co wss://*.supabase.co`,
+  `connect-src 'self' ${ML_ORIGINS} ${POSE_ORIGINS} ${supabaseOrigins}`,
   "worker-src 'self' blob:",
   "base-uri 'self'",
   "form-action 'self'",
@@ -40,6 +44,8 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
   { key: "X-DNS-Prefetch-Control", value: "off" },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  ...(isDev ? [] : [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]),
 ];
 
 const nextConfig: NextConfig = {

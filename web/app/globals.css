@@ -727,3 +727,38 @@ html { scroll-behavior: smooth; }
   .lp-hero-cta { flex-direction: column; align-items: stretch; }
   .lp-hero-cta .btn { justify-content: center; }
 }
+
+/* Coach roster, reports, and batch analysis */
+.roster-list, .batch-list { display: flex; flex-direction: column; gap: 10px; }
+.roster-row, .batch-row {
+  display: flex; align-items: center; gap: 16px; min-height: 70px;
+  padding: 14px 16px; color: inherit; text-decoration: none;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.roster-avatar {
+  width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--accent); color: var(--ink); font-weight: 750;
+}
+.roster-main { display: flex; flex: 1; min-width: 140px; flex-direction: column; gap: 3px; }
+.roster-main span, .roster-row time { color: var(--ink-soft); font-size: 12px; }
+.roster-metric { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+.roster-metric span { color: var(--ink-soft); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+.roster-metric strong { font-family: var(--font-display), Georgia, serif; font-size: 25px; font-weight: 500; }
+.trend { border: 1px solid var(--line); border-radius: 999px; padding: 5px 9px; font-size: 11px; text-transform: capitalize; }
+.trend-improving { color: var(--good); border-color: color-mix(in srgb, var(--good), transparent 60%); }
+.trend-declining { color: var(--danger); border-color: color-mix(in srgb, var(--danger), transparent 60%); }
+.trend-new, .trend-steady { color: var(--ink-soft); }
+.score-line { height: 180px; display: flex; align-items: flex-end; gap: 6px; border-bottom: 1px solid var(--line); padding-top: 12px; }
+.score-line span { flex: 1; max-width: 34px; min-width: 5px; background: var(--green); border-radius: 4px 4px 0 0; opacity: 0.85; }
+.report-shell { padding-top: 72px; padding-bottom: 80px; max-width: 920px; }
+.report-mark { font-family: var(--font-geist-mono), monospace; color: var(--green); font-size: 11px; letter-spacing: 0.18em; margin-bottom: 18px; }
+.batch-index { font-family: var(--font-geist-mono), monospace; color: var(--green); font-size: 12px; }
+.truncate { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) {
+  .roster-row { display: grid; grid-template-columns: 42px 1fr auto; gap: 10px; }
+  .roster-metric { grid-column: 2; align-items: flex-start; }
+  .roster-row .trend { grid-column: 3; grid-row: 2; }
+  .roster-row time { display: none; }
+  .report-shell { padding-top: 40px; }
+}

@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { Workout } from "@/lib/types";
 import type { PoseAnalysis } from "@/lib/pose";
 import { useAuth } from "@/components/AuthProvider";
 import { saveSession, createShare } from "@/lib/history";
+import { shareAnalysisWithCoach, syncPlayerSummary } from "@/lib/coach";
+import { saveLocalSession } from "@/lib/localHistory";
 
 const STROKES = ["auto", "forehand", "backhand", "serve", "volley", "slice"];
 
@@ -19,14 +21,28 @@ export default function Analyze() {
   const [drag, setDrag] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const [coachShareState, setCoachShareState] = useState<"idle" | "sharing" | "shared" | "failed">("idle");
   const inputRef = useRef<HTMLInputElement>(null);
   const { user, enabled } = useAuth();
+  const activeUserId = useRef<string | null>(user?.id ?? null);
+
+  useEffect(() => {
+    const previous = activeUserId.current;
+    activeUserId.current = user?.id ?? null;
+    if (previous && previous !== activeUserId.current) {
+      setResult(null); setWorkout(null); setShareUrl(null); setFilename(null); setSaveState("idle"); setCoachShareState("idle");
+    }
+  }, [user?.id]);
 
   async function handleFile(file: File) {
+    const ownerId = user?.id ?? null;
     setErr(null);
     setResult(null);
     setWorkout(null);
     setShareUrl(null);
+    setSaveState("idle");
+    setCoachShareState("idle");
     // Guard the drop path (the file dialog uses accept="video/*", but drag-drop
     // bypasses it): reject non-videos and absurdly large files up front so we
     // give a clear message instead of a cryptic decode error or a hung tab.
@@ -43,9 +59,15 @@ export default function Analyze() {
       setBusy("Analysing your stroke… (first run loads the model)");
       const { analyzeStroke } = await import("@/lib/pose");
       const res = await analyzeStroke(file, stroke);
+      if (ownerId && activeUserId.current !== ownerId) return;
       setResult(res);
       api.recordAnalysis(res.seconds, res.videoFrames); // count it (no clip leaves the device)
-      if (user) saveSession(res).catch(() => {}); // save to history when signed in
+      if (ownerId) {
+        setSaveState("saving");
+        const saved = await saveSession(res, ownerId).catch(() => false);
+        await syncPlayerSummary(ownerId, res.stroke, res.formScore).catch(() => false);
+        if (activeUserId.current === ownerId) setSaveState(saved ? "saved" : "failed");
+      } else saveLocalSession(res);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't analyse that clip.");
     } finally {
@@ -66,18 +88,36 @@ export default function Analyze() {
   }
 
   async function makeShare() {
-    if (!result) return;
+    if (!result || !user) return;
+    const ownerId = user.id;
     try {
       setBusy("Creating summary…");
       const id = await createShare({
         stroke: result.stroke, formScore: result.formScore, serveSpeedKmh: result.serveSpeedKmh,
         flaws: result.flaws, jointFeedback: result.jointFeedback, workout, createdAt: new Date().toISOString(),
-      });
+      }, ownerId);
+      if (activeUserId.current !== ownerId) return;
       if (id) setShareUrl(`${window.location.origin}/s/${id}`);
       else setErr("Couldn't create the summary. Sign in and try again.");
     } finally {
       setBusy(null);
     }
+  }
+
+  async function shareWithLinkedCoach() {
+    if (!result || !user) return;
+    const ownerId = user.id;
+    setCoachShareState("sharing");
+    const ok = await shareAnalysisWithCoach(ownerId, {
+      stroke: result.stroke,
+      formScore: result.formScore,
+      serveSpeedKmh: result.serveSpeedKmh,
+      flaws: result.flaws,
+      jointFeedback: result.jointFeedback,
+      workout,
+      createdAt: new Date().toISOString(),
+    }).catch(() => false);
+    if (activeUserId.current === ownerId) setCoachShareState(ok ? "shared" : "failed");
   }
 
   return (
@@ -144,9 +184,15 @@ export default function Analyze() {
 
       {result && (
         <>
-          {user ? (
+          {saveState === "saved" ? (
             <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
               ✓ Saved to your history. <a href="/stats" style={{ color: "var(--court)", fontWeight: 600 }}>See your stats →</a>
+            </div>
+          ) : saveState === "saving" ? (
+            <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>Saving to your account…</div>
+          ) : saveState === "failed" ? (
+            <div role="alert" style={{ marginBottom: 14, fontSize: 14, color: "var(--danger)" }}>
+              This analysis stayed on this device and was not saved to your account.
             </div>
           ) : enabled ? (
             <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
@@ -256,6 +302,18 @@ export default function Analyze() {
               </div>
             ) : (
               <button className="btn" onClick={makeShare} disabled={!!busy}>Create a shareable summary →</button>
+            )}
+            {user && (
+              <div style={{ borderTop: "1px solid var(--line-soft)", marginTop: 16, paddingTop: 16 }}>
+                <p style={{ color: "var(--ink-soft)", fontSize: 13, lineHeight: 1.55, marginBottom: 10 }}>
+                  Linked to a coach? Send this breakdown privately. The video itself stays on this device.
+                </p>
+                <button className="btn btn-ghost" onClick={shareWithLinkedCoach}
+                  disabled={!!busy || coachShareState === "sharing" || coachShareState === "shared"}>
+                  {coachShareState === "sharing" ? "Sharing..." : coachShareState === "shared" ? "Shared with coach" : "Share breakdown with my coach"}
+                </button>
+                {coachShareState === "failed" && <div role="alert" style={{ color: "var(--danger)", fontSize: 13, marginTop: 8 }}>Join a squad first, then try again.</div>}
+              </div>
             )}
           </div>
         </>

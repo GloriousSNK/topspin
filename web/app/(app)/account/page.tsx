@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
-import { supabase } from "@/lib/supabase";
-import { getSessions, getMyProfile, setMyProfile } from "@/lib/history";
+import CoachConnection from "@/components/CoachConnection";
+import { deleteSessions, getSessions, getMyProfile, setMyProfile } from "@/lib/history";
 import {
   getMyConsent, submitAgeGate, resendGuardianRequest, needsGuardianConsent,
   type ConsentRow,
@@ -18,7 +18,7 @@ const PERKS = [
 ];
 
 export default function Account() {
-  const { user, enabled, loading, signIn, signUp, signInWithGoogle, resend, signOut } = useAuth();
+  const { user, enabled, loading, signIn, signUp, signInWithMagicLink, signInWithGoogle, resend, signOut } = useAuth();
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -34,6 +34,9 @@ export default function Account() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [consent, setConsent] = useState<ConsentRow | null>(null);
   const [consentLoaded, setConsentLoaded] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [accountLoadError, setAccountLoadError] = useState(false);
+  const activeUserId = useRef<string | null>(user?.id ?? null);
 
   useEffect(() => {
     // Reset every per-account field first so nothing from a previously
@@ -41,22 +44,37 @@ export default function Account() {
     // account that has no public profile would keep the prior user's display
     // name / UTR / public-toggle in the form — and "Save details" would write
     // them onto the new account. Deliberate one-time reset keyed on identity.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCount(null); setConsent(null); setConsentLoaded(false); setIsPublic(false); setDisplayName(""); setUtr(""); setUsta("");
+    activeUserId.current = user?.id ?? null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset account-scoped UI on identity change
+    setCount(null); setConsent(null); setConsentLoaded(false); setProfileLoaded(false); setAccountLoadError(false);
+    setIsPublic(false); setDisplayName(""); setUtr(""); setUsta(""); setSavedProfile(false);
     if (!user) return;
     let alive = true;
-    getSessions(200).then((r) => { if (alive) setCount(r.length); });
-    getMyProfile().then((p) => {
+    getSessions(user.id, 200).then((r) => { if (alive) setCount(r.length); });
+    getMyProfile(user.id).then((p) => {
       if (!alive || !p) return;
       setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); setUtr(p.utr ?? ""); setUsta(p.usta ?? "");
-    });
-    getMyConsent().then((c) => { if (alive) { setConsent(c); setConsentLoaded(true); } });
+    }).catch(() => { if (alive) setAccountLoadError(true); })
+      .finally(() => { if (alive) setProfileLoaded(true); });
+    getMyConsent(user.id).then((c) => { if (alive) setConsent(c); })
+      .catch(() => { if (alive) setAccountLoadError(true); })
+      .finally(() => { if (alive) setConsentLoaded(true); });
     return () => { alive = false; };
   }, [user]);
 
+  useEffect(() => {
+    const authError = new URLSearchParams(window.location.search).get("authError");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- URL state is external input
+    if (authError) setMsg(authError);
+  }, []);
+
   async function saveProfile(pub: boolean) {
+    if (!user) return;
+    const ownerId = user.id;
+    const ok = await setMyProfile(ownerId, pub, displayName, utr, usta);
+    if (activeUserId.current !== ownerId) return;
+    if (!ok) { setMsg("Couldn't save your profile. Try again."); return; }
     setIsPublic(pub);
-    await setMyProfile(pub, displayName, utr, usta);
     setSavedProfile(true);
     setTimeout(() => setSavedProfile(false), 1500);
   }
@@ -74,14 +92,49 @@ export default function Account() {
     const err = mode === "in" ? await signIn(email, pw) : await signUp(email, pw);
     if (err) setMsg(err);
     else if (mode === "up") setOk("Almost there — check your email for a confirmation link, then sign in.");
+    setPw("");
+    setBusy(false);
+  }
+
+  async function magicLink() {
+    setBusy(true); setMsg(null); setOk(null);
+    if (!email.trim()) {
+      setMsg("Enter your email first."); setBusy(false); return;
+    }
+    const err = await signInWithMagicLink(email.trim());
+    if (err) setMsg(err);
+    else setOk("Check your email for a secure sign-in link.");
     setBusy(false);
   }
 
   async function clearHistory() {
-    if (!supabase || !user) return;
+    if (!user) return;
     if (!confirm("Delete all your saved analyses? This can't be undone.")) return;
-    await supabase.from("sessions").delete().eq("user_id", user.id);
-    setCount(0);
+    const ownerId = user.id;
+    const ok = await deleteSessions(ownerId);
+    if (activeUserId.current !== ownerId) return;
+    if (ok) setCount(0);
+    else setMsg("Couldn't delete your analyses. Nothing was changed.");
+  }
+
+  async function deleteAccount() {
+    if (!user) return;
+    if (!confirm("Permanently delete your TopSpin account and all synced data? This cannot be undone.")) return;
+    setBusy(true); setMsg(null);
+    try {
+      const response = await fetch("/api/account/delete", { method: "POST" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: string } | null;
+        setMsg(body?.error ?? "Couldn't delete your account. Nothing was changed.");
+        return;
+      }
+      await signOut();
+      window.location.assign("/");
+    } catch {
+      setMsg("Couldn't reach the server. Nothing was changed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!enabled) return (
@@ -98,14 +151,15 @@ export default function Account() {
 
     // Wait for the consent row before deciding what to show, so a user who
     // still needs the age gate doesn't see the account flash first.
-    if (!consentLoaded) return <h1 className="h1">Account</h1>;
+    if (!consentLoaded || !profileLoaded) return <h1 className="h1">Account</h1>;
+    if (accountLoadError) return <Bare title="Account" body="We couldn't load your account details. Refresh the page and try again." />;
 
     // One-time age gate: a fresh account tells us its birth year before the
     // account is usable, so minors are routed through guardian consent
     // (COPPA/GDPR). The whole app stays usable account-free for anyone who'd
     // rather not make an account at all.
     if (!consent) {
-      return <AgeGate email={user.email ?? ""} onDone={setConsent} onSignOut={() => signOut()} />;
+      return <AgeGate userId={user.id} email={user.email ?? ""} onDone={setConsent} onSignOut={() => signOut()} />;
     }
 
     const pending = consent.consent_status === "pending";
@@ -130,7 +184,7 @@ export default function Account() {
               {count === null ? "…" : `${count} ${count === 1 ? "analysis" : "analyses"} saved`}
             </div>
           </div>
-          <button className="btn btn-ghost" onClick={() => signOut()}>Sign out</button>
+          <button className="btn btn-ghost" onClick={async () => { await signOut(); setPw(""); setEmail(""); }}>Sign out</button>
         </div>
 
         <div className="grid grid-3" style={{ marginBottom: 18 }}>
@@ -138,6 +192,8 @@ export default function Account() {
           <QuickCard href="/stats" title="View stats" desc="Your form trend, history and saved drills." />
           <QuickCard href="/workouts" title="Build a session" desc="Drills for what you're working on." />
         </div>
+
+        <CoachConnection userId={user.id} consentReady={!pending} />
 
         <div className="card" style={{ marginBottom: 18 }}>
           <div className="card-title">Public profile</div>
@@ -189,6 +245,11 @@ export default function Account() {
           <button className="btn btn-ghost" style={{ borderColor: "var(--danger)", color: "var(--danger)" }} onClick={clearHistory}>
             Delete my saved analyses
           </button>
+          <button className="btn btn-ghost" style={{ borderColor: "var(--danger)", color: "var(--danger)", marginLeft: 10 }}
+            onClick={deleteAccount} disabled={busy}>
+            Delete my account
+          </button>
+          {msg && <div role="alert" style={{ color: "var(--danger)", fontSize: 13, marginTop: 10 }}>{msg}</div>}
         </div>
       </div>
     );
@@ -231,6 +292,12 @@ export default function Account() {
           <button className="btn" disabled={busy} style={{ justifyContent: "center" }}>
             {busy ? "…" : mode === "in" ? "Sign in" : "Create account"}
           </button>
+          {mode === "in" && (
+            <button type="button" className="btn btn-ghost" disabled={busy}
+              style={{ justifyContent: "center" }} onClick={magicLink}>
+              Email me a sign-in link
+            </button>
+          )}
           <button type="button" className="btn btn-ghost" style={{ justifyContent: "center" }}
             onClick={() => { setMode(mode === "in" ? "up" : "in"); setMsg(null); setOk(null); }}>
             {mode === "in" ? "New here? Create an account" : "Already have an account? Sign in"}
@@ -269,8 +336,8 @@ function QuickCard({ href, title, desc }: { href: string; title: string; desc: s
 // only a birth YEAR (coarse, lower-data). The server re-derives whether a
 // guardian is required — this form just reveals the guardian field early so a
 // minor knows what's coming. See lib/consent.ts and the /api/consent routes.
-function AgeGate({ email, onDone, onSignOut }: {
-  email: string; onDone: (c: ConsentRow) => void; onSignOut: () => void;
+function AgeGate({ userId, email, onDone, onSignOut }: {
+  userId: string; email: string; onDone: (c: ConsentRow) => void; onSignOut: () => void;
 }) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState("");
@@ -287,7 +354,7 @@ function AgeGate({ email, onDone, onSignOut }: {
     setBusy(true); setErr(null);
     const r = await submitAgeGate(yearNum, minor ? guardianEmail : undefined);
     if (!r.ok) { setErr(r.error ?? "Something went wrong."); setBusy(false); return; }
-    const c = await getMyConsent();
+    const c = await getMyConsent(userId);
     setBusy(false);
     if (c) onDone(c);
     else setErr("Saved, but couldn't reload. Refresh the page.");

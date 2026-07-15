@@ -13,11 +13,14 @@ leaving a squad (**T9**) — see `supabase-coach-layer-1b.sql`, `web/lib/consent
 and `web/app/api/consent/*`. Rate-limiting now covers the consent request/approve
 routes.
 
-**Still open (flagged deferrals):** the `@supabase/ssr` httpOnly-cookie
-migration (**T7**) — the app still uses the browser SDK session; and the coach
-dashboard route guard (**T8**) plus `join_squad` route rate-limiting, which land
-with the Phase 2 dashboard and squad-join UI. Login rate-limiting rides on
-Supabase's own auth throttling until the SSR migration.
+The app now uses `@supabase/ssr` cookie-backed sessions (**T7**), with proxy
+refresh and a server-side code-exchange callback. Consent routes authenticate
+from the verified cookie session rather than accepting bearer tokens from page
+code. Legacy localStorage auth entries are removed during the migration.
+
+**Still open (flagged deferrals):** the coach dashboard route guard (**T8**)
+plus `join_squad` route rate-limiting, which land with the Phase 2 dashboard and
+squad-join UI. Login and magic-link throttling use Supabase Auth's limits.
 
 ## Security-audit hardening (post-1b review)
 
@@ -99,9 +102,13 @@ can flip it. **TODO(1c):** that route must verify a single-use, expiring token
 sent to the guardian email — not just any POST.
 
 **T7 — Session/token theft.**
-**TODO(1b):** auth migrates to `@supabase/ssr` — session in an httpOnly,
-Secure, SameSite cookie, never in localStorage/JS reach. Middleware refreshes
-it. No access token is exposed to page scripts.
+Auth uses `@supabase/ssr` cookies with proxy refresh and no localStorage token.
+Because the existing app performs RLS-protected Supabase queries directly from
+the browser, these cookies cannot be strictly `httpOnly`: the browser SDK must
+refresh and attach the session. The CSP and React escaping reduce XSS exposure.
+Making tokens fully inaccessible to JavaScript requires moving every Supabase
+query behind server routes; track that as a separate hardening phase rather
+than claiming the current architecture provides it.
 
 **T8 — Unauthenticated access to coach-only routes/views.**
 **TODO(1b/2):** the coach dashboard route checks for an authenticated session
@@ -119,3 +126,20 @@ that player's `player_summaries` on leave so sync data doesn't linger.
 - Login / magic-link request
 - `join_squad` (squad-code brute force)
 - Consent-request send + consent-approval endpoints
+# Completed coach-layer boundaries
+
+The final implementation is defined by `supabase-complete-app.sql`:
+
+- Account roles are chosen once. Player and coach capabilities are checked in database RPCs.
+- Squad-code attempts are throttled in Postgres, so serverless restarts do not reset the limit.
+- Coach roster/history RPCs derive access from the current squad relationship on every call.
+- Practice completions are private player rows. A minimal coach summary is added only while a
+  valid squad membership exists.
+- Full analysis breakdowns reach a coach only through the explicit player share action. Raw clips
+  remain on-device.
+- Coach notes are limited to the linked coach and linked player.
+- Parent reports use 192-bit random ids, expire after 30 days, and expose summary fields only.
+- Leaving a squad deletes coach-visible summaries, analysis shares, notes, and reports for that
+  relationship. Deleting the auth account cascades all account-owned data.
+- Anonymous analysis, drills, and practice history use separate browser-only keys and are never
+  merged into a later signed-in account.

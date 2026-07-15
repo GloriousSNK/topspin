@@ -30,7 +30,6 @@ export function useTrafficStats(): TrafficStats | null {
   const [stats, setStats] = useState<TrafficStats | null>(cache);
   useEffect(() => {
     subscribers.add(setStats);
-    setStats(cache); // sync to whatever the shared cache already holds
     if (subscribers.size === 1) {
       refresh();
       timer = setInterval(refresh, 15000);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { onScrollFrame } from "@/lib/scrollTicker";
 
@@ -55,7 +55,10 @@ function useScrubCanvas(draw: (ctx: CanvasRenderingContext2D, w: number, h: numb
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawRef = useRef(draw);
-  drawRef.current = draw;
+
+  useEffect(() => {
+    drawRef.current = draw;
+  }, [draw]);
 
   useEffect(() => {
     const wrap = wrapRef.current, canvas = canvasRef.current;
@@ -131,9 +134,11 @@ function trace(ctx: CanvasRenderingContext2D, pts: P2[], upto: number, X: (x: nu
 /* ================= 1. Break the parabola (scroll-drawn) ================= */
 export function ScrollFlight() {
   const gapRef = useRef<HTMLSpanElement>(null);
-  const sim = useRef<{ vac: P2[]; drag: P2[]; real: P2[] } | null>(null);
-  if (!sim.current) sim.current = { vac: fly(32, 10, 0, 0), drag: fly(32, 10, 0, 1), real: fly(32, 10, 2200, 2) };
-  const { vac, drag, real } = sim.current;
+  const { vac, drag, real } = useMemo(() => ({
+    vac: fly(32, 10, 0, 0),
+    drag: fly(32, 10, 0, 1),
+    real: fly(32, 10, 2200, 2),
+  }), []);
   const finalGap = vac[vac.length - 1][0] - real[real.length - 1][0];
 
   const { wrapRef, canvasRef } = useScrubCanvas((ctx, w, h, p) => {
@@ -177,9 +182,10 @@ export function ScrollFlight() {
 /* ================= 2. Chaos twins (scroll-flown) ================= */
 export function ChaosScroll() {
   const sepRef = useRef<HTMLSpanElement>(null);
-  const sim = useRef<{ a: P2[]; b: P2[] } | null>(null);
-  if (!sim.current) sim.current = { a: fly(31, 9, 2000, 2), b: fly(31, 9.35, 2000, 2) };
-  const { a, b } = sim.current;
+  const { a, b } = useMemo(() => ({
+    a: fly(31, 9, 2000, 2),
+    b: fly(31, 9.35, 2000, 2),
+  }), []);
 
   const { wrapRef, canvasRef } = useScrubCanvas((ctx, w, h, p) => {
     const pad = 20;

@@ -13,6 +13,7 @@ export default function Analytics() {
   const path = usePathname();
 
   useEffect(() => {
+    if (path.startsWith("/consent") || path.startsWith("/auth")) return;
     try {
       let sid = localStorage.getItem("ts_sid");
       if (!sid) {

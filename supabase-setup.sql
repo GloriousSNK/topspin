@@ -27,15 +27,6 @@ create policy "own sessions read"   on public.sessions for select using (auth.ui
 create policy "own sessions write"  on public.sessions for insert with check (auth.uid() = user_id);
 create policy "own sessions delete" on public.sessions for delete using (auth.uid() = user_id);
 
--- Public read of another player's sessions IF their profile is public.
-drop policy if exists "public sessions read" on public.sessions;
-create policy "public sessions read" on public.sessions for select using (
-  exists (
-    select 1 from public.profiles p
-    where p.user_id = sessions.user_id and p.is_public = true
-  )
-);
-
 -- ---------------------------------------------------------------------------
 -- 2. Saved drills & workouts  (this is what the Save buttons write to)
 -- ---------------------------------------------------------------------------
@@ -70,6 +61,7 @@ alter table public.profiles enable row level security;
 
 drop policy if exists "own profile read"   on public.profiles;
 drop policy if exists "own profile write"  on public.profiles;
+drop policy if exists "own profile update" on public.profiles;
 drop policy if exists "public profile read" on public.profiles;
 create policy "own profile read"    on public.profiles for select using (auth.uid() = user_id);
 create policy "own profile write"   on public.profiles for insert with check (auth.uid() = user_id);

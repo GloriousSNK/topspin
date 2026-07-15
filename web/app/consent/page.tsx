@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
 import ConsentApprove from "./ConsentApprove";
 
-// Token URLs must never be indexed or followed by crawlers.
 export const metadata: Metadata = {
   title: "Approve a young player",
-  robots: { index: false, follow: false },
+  robots: { index: false, follow: false, noarchive: true, nosnippet: true },
 };
 
-export default async function ConsentPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
+export default function ConsentPage() {
   return (
     <div className="site">
       <main className="container" style={{ padding: "56px 28px 60px", flex: 1, maxWidth: 620 }}>
@@ -18,7 +16,7 @@ export default async function ConsentPage({ params }: { params: Promise<{ token:
           A young player in your care created a TopSpin account and would like to share their
           practice progress with their tennis coach. Your OK is needed before anything syncs.
         </p>
-        <ConsentApprove token={token} />
+        <ConsentApprove />
       </main>
     </div>
   );
