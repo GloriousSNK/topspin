@@ -9,6 +9,11 @@ export interface SquadSummary {
   code: string;
 }
 
+export interface CreateSquadResult {
+  squad: SquadSummary | null;
+  error: "session" | "setup" | "permission" | "unknown" | null;
+}
+
 export interface MembershipSummary {
   squad_id: string;
   squad_name: string;
@@ -85,12 +90,24 @@ export async function chooseRole(userId: string, role: AccountRole): Promise<Acc
   return error || !(await matches(userId)) ? null : data as AccountRole;
 }
 
-export async function createSquad(userId: string, name: string): Promise<SquadSummary | null> {
-  if (!supabase || !(await matches(userId))) return null;
+export async function createSquad(userId: string, name: string): Promise<CreateSquadResult> {
+  if (!supabase || !(await matches(userId))) return { squad: null, error: "session" };
   const { data, error } = await supabase.rpc("create_my_squad", { p_name: name });
   const row = Array.isArray(data) ? data[0] : null;
-  if (error || !row || !(await matches(userId))) return null;
-  return { id: row.squad_id, name: row.squad_name, code: row.squad_code };
+  if (!(await matches(userId))) return { squad: null, error: "session" };
+  if (error) {
+    const code = error.code ?? "";
+    const message = error.message?.toLowerCase() ?? "";
+    if (code === "42883" || code === "PGRST202" || message.includes("gen_random_bytes")) {
+      return { squad: null, error: "setup" };
+    }
+    if (code === "42501" || message.includes("coach account required")) {
+      return { squad: null, error: "permission" };
+    }
+    return { squad: null, error: "unknown" };
+  }
+  if (!row) return { squad: null, error: "unknown" };
+  return { squad: { id: row.squad_id, name: row.squad_name, code: row.squad_code }, error: null };
 }
 
 export async function joinSquad(userId: string, code: string): Promise<MembershipSummary | null> {

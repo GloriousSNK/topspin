@@ -54,6 +54,7 @@ Run the Supabase migrations in this order:
 3. `supabase-coach-layer-1b.sql`
 4. `supabase-security-hardening.sql`
 5. `supabase-complete-app.sql`
+6. `supabase-squad-code-fix.sql`
 
 The final migration adds account roles, squads, database-backed squad-code throttling,
 minimal player summary sync, coach rosters, private analysis shares and notes, expiring
@@ -67,7 +68,7 @@ addition to the two public Supabase variables:
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 RESEND_API_KEY
-EMAIL_FROM
+CONSENT_EMAIL_FROM
 ```
 
 Do not prefix the service-role key with `NEXT_PUBLIC_`.

@@ -5,8 +5,9 @@ import { AutoReveal } from "@/components/lp/Playground";
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="site">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <TopNav />
-      <div style={{ flex: 1 }}>{children}</div>
+      <main id="main-content" style={{ flex: 1 }}>{children}</main>
       <AutoReveal />
       <Footer />
     </div>

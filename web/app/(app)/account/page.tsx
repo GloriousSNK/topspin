@@ -242,10 +242,10 @@ export default function Account() {
             deleting your account removes all of it. See the{" "}
             <Link href="/privacy" style={{ color: "var(--court)", fontWeight: 600 }}>privacy page</Link>.
           </p>
-          <button className="btn btn-ghost" style={{ borderColor: "var(--danger)", color: "var(--danger)" }} onClick={clearHistory}>
+          <button className="btn btn-danger" onClick={clearHistory}>
             Delete my saved analyses
           </button>
-          <button className="btn btn-ghost" style={{ borderColor: "var(--danger)", color: "var(--danger)", marginLeft: 10 }}
+          <button className="btn btn-danger" style={{ marginLeft: 10 }}
             onClick={deleteAccount} disabled={busy}>
             Delete my account
           </button>

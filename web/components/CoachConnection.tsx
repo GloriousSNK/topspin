@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
 import {
   chooseRole, createSquad, getCoachContext, joinSquad, leaveSquad,
   type AccountRole, type CoachContext,
 } from "@/lib/coach";
 
 export default function CoachConnection({ userId, consentReady }: { userId: string; consentReady: boolean }) {
+  const { refreshRole } = useAuth();
   const [context, setContext] = useState<CoachContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -30,16 +32,28 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
     const value = await chooseRole(userId, role);
     if (owner.current !== userId) return;
     if (!value) setMessage("Couldn't set up that account type. Try again.");
-    else setContext({ role: value, squads: [], membership: null });
+    else {
+      setContext({ role: value, squads: [], membership: null });
+      refreshRole();
+    }
     setBusy(false);
   }
 
   async function makeSquad() {
     setBusy(true); setMessage(null);
-    const squad = await createSquad(userId, squadName);
+    const result = await createSquad(userId, squadName);
     if (owner.current !== userId) return;
-    if (!squad) setMessage("Couldn't create the squad. Try again.");
-    else setContext((c) => c ? { ...c, squads: [...c.squads, squad] } : c);
+    if (!result.squad) {
+      setMessage(result.error === "setup"
+        ? "Squad setup needs the latest database migration."
+        : result.error === "permission"
+          ? "This account isn't set up as a coach."
+          : result.error === "session"
+            ? "Your session expired. Sign in again."
+            : "Couldn't create the squad. Try again.");
+    } else {
+      setContext((c) => c ? { ...c, squads: [...c.squads, result.squad!] } : c);
+    }
     setBusy(false);
   }
 
@@ -63,7 +77,7 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
   }
 
   return (
-    <section className="card" style={{ marginBottom: 18 }} aria-labelledby="coach-connection-title">
+    <section id="coach-connection" className="card" style={{ marginBottom: 18, scrollMarginTop: 88 }} aria-labelledby="coach-connection-title">
       <div className="card-title">Coach connection</div>
       <h2 id="coach-connection-title" style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 25, fontWeight: 500, marginBottom: 8 }}>
         Train together, only when you choose to

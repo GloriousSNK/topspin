@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ getUser: vi.fn(), rpc: vi.fn(), from: vi.fn() }));
 vi.mock("./supabase", () => ({ supabase: { auth: { getUser: mocks.getUser }, rpc: mocks.rpc, from: mocks.from } }));
 
-import { chooseRole, getCoachRoster, leaveSquad } from "./coach";
+import { chooseRole, createSquad, getCoachRoster, leaveSquad } from "./coach";
 
 describe("coach data account isolation", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -28,5 +28,26 @@ describe("coach data account isolation", () => {
       .mockResolvedValueOnce({ data: { user: { id: "player-b" } }, error: null });
     mocks.rpc.mockResolvedValue({ data: null, error: null });
     await expect(leaveSquad("player-a")).resolves.toBe(false);
+  });
+
+  it("identifies a stale squad database function", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "coach-a" } }, error: null });
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "42883", message: "function gen_random_bytes(integer) does not exist" },
+    });
+    await expect(createSquad("coach-a", "Varsity")).resolves.toEqual({ squad: null, error: "setup" });
+  });
+
+  it("returns a newly created squad", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "coach-a" } }, error: null });
+    mocks.rpc.mockResolvedValue({
+      data: [{ squad_id: "squad-1", squad_name: "Varsity", squad_code: "A1B2C3" }],
+      error: null,
+    });
+    await expect(createSquad("coach-a", "Varsity")).resolves.toEqual({
+      squad: { id: "squad-1", name: "Varsity", code: "A1B2C3" },
+      error: null,
+    });
   });
 });

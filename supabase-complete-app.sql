@@ -39,7 +39,9 @@ begin
     then raise exception 'coach account required' using errcode = '42501'; end if;
   v_name := left(coalesce(nullif(trim(p_name), ''), 'My squad'), 60);
   loop
-    v_code := upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 6));
+    -- gen_random_uuid() is built into modern Postgres. Unlike pgcrypto's
+    -- gen_random_bytes(), it remains available with search_path = public.
+    v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6));
     exit when not exists (select 1 from public.squads where code = v_code);
   end loop;
   insert into public.squads(coach_id, code, name) values (auth.uid(), v_code, v_name)
