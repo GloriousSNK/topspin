@@ -32,7 +32,7 @@ export function useTrafficStats(): TrafficStats | null {
     subscribers.add(setStats);
     if (subscribers.size === 1) {
       refresh();
-      timer = setInterval(refresh, 15000);
+      timer = setInterval(() => { if (!document.hidden) void refresh(); }, 15000);
     }
     return () => {
       subscribers.delete(setStats);

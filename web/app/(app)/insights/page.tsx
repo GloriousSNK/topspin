@@ -1,6 +1,7 @@
 "use client";
 
 import { useTrafficStats } from "@/lib/useTrafficStats";
+import { BackendWakeupPanel } from "@/components/BackendStatus";
 
 export default function Insights() {
   // Same shared source the landing page reads, so the numbers match exactly.
@@ -15,11 +16,7 @@ export default function Insights() {
         machine. Updates live as people move through the site.
       </p>
 
-      {!stats && (
-        <div className="card" style={{ marginBottom: 18 }}>
-          <strong style={{ color: "var(--court)" }}>● Loading…</strong>
-        </div>
-      )}
+      {!stats && <BackendWakeupPanel title="Loading live TopSpin numbers" />}
 
       {stats && (
         <>
@@ -62,4 +59,3 @@ function Metric({ value, label, accent }: { value: number | string; label: strin
 function fmt(n: number): string {
   return n.toLocaleString();
 }
-

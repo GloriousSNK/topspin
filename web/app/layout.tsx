@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import Analytics from "@/components/Analytics";
 import { AuthProvider } from "@/components/AuthProvider";
+import { BackendStatusBanner } from "@/components/BackendStatus";
 import { SITE_URL, SITE_NAME, ORG_NAME, SITE_DESCRIPTION } from "@/lib/site";
 
 const geistSans = Geist({
@@ -105,6 +106,7 @@ export default function RootLayout({
         />
         <AuthProvider>{children}</AuthProvider>
         <Analytics />
+        <BackendStatusBanner />
       </body>
     </html>
   );

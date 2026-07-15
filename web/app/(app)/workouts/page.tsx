@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { saveCustomDrill, saveWorkout } from "@/lib/history";
 import { completePractice } from "@/lib/coach";
 import { completeLocalPractice, saveLocalDrill, saveLocalWorkout } from "@/lib/localHistory";
+import { BackendWakeupPanel } from "@/components/BackendStatus";
 
 const GOALS = ["all_round", "consistency", "power", "footwork", "serve", "volley"];
 const LEVELS = ["beginner", "intermediate", "advanced"];
@@ -30,6 +31,7 @@ export default function Workouts() {
   const [minutes, setMinutes] = useState(45);
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [catalogue, setCatalogue] = useState<CatalogueDrill[]>([]);
+  const [catalogueLoading, setCatalogueLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -43,7 +45,24 @@ export default function Workouts() {
   const activeUserId = useRef<string | null>(user?.id ?? null);
 
   useEffect(() => {
-    api.catalogue().then((r) => setCatalogue(r.drills)).catch((e) => setErr(String(e)));
+    let alive = true;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const load = () => {
+      api.catalogue()
+        .then((r) => {
+          if (!alive) return;
+          setCatalogue(r.drills);
+          setCatalogueLoading(false);
+          setErr(null);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setErr("The drill library is still starting. We’ll keep trying.");
+          retry = setTimeout(load, 5000);
+        });
+    };
+    load();
+    return () => { alive = false; if (retry) clearTimeout(retry); };
   }, []);
 
   useEffect(() => {
@@ -129,6 +148,8 @@ export default function Workouts() {
         Pick a goal and hit Generate for a ready-made session — or scroll down to browse all
         {" "}{catalogue.length || 34} drills. Sessions from a clip analysis pull straight from here.
       </p>
+
+      {catalogueLoading && <BackendWakeupPanel title="Loading the drill library" />}
 
       <div className="card" style={{ marginBottom: 18 }}>
         <div className="card-title">Build a session</div>

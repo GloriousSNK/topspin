@@ -86,9 +86,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!alive) return;
       clientRef.current = sb;
       if (!sb) { setLoading(false); return; }
-      sb.auth.getUser().then(({ data }) => {
+      // Restore the signed-in UI from the cookie-backed local session first.
+      // A server validation still runs immediately afterwards, but it no longer
+      // blanks the app during a tab restore or a short network interruption.
+      sb.auth.getSession().then(({ data }) => {
         if (!alive) return;
-        applyUser(data.user ?? null);
+        const cachedUser = data.session?.user ?? null;
+        if (cachedUser) {
+          applyUser(cachedUser);
+          setLoading(false);
+        }
+        return sb.auth.getUser().then(({ data: verified }) => {
+          if (!alive) return;
+          applyUser(verified.user ?? null);
+          setLoading(false);
+        });
+      }).catch(() => {
+        if (!alive) return;
+        applyUser(null);
         setLoading(false);
       });
       const { data: sub } = sb.auth.onAuthStateChange((_e, s) => { if (alive) applyUser(s?.user ?? null); });

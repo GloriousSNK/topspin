@@ -20,9 +20,10 @@ class TrackIn(BaseModel):
 # Per-IP flood control. LRU-bounded (no global reset that could be abused).
 _track_limiter = RateLimiter(max_events=120, window_s=60.0)
 
-# Country comes from whatever CDN fronts the service (Cloudflare, which Render
-# sits behind, sets CF-IPCountry). We keep only the two-letter code, never the IP.
-_GEO_HEADERS = ("cf-ipcountry", "x-vercel-ip-country", "x-country-code", "x-geo-country")
+# Browser pageviews pass through a Vercel route first. Prefer the visitor country
+# it forwards over Render/Cloudflare's country, which describes Vercel's server
+# egress location instead of the person using TopSpin.
+_GEO_HEADERS = ("x-vercel-ip-country", "x-country-code", "cf-ipcountry", "x-geo-country")
 
 
 def _country_of(request: Request) -> str | None:

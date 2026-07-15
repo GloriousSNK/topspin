@@ -69,7 +69,7 @@ export const api = {
   // Fire-and-forget pageview ping. Never throws; never blocks the UI.
   track: (path: string, session: string, referrer?: string | null) => {
     try {
-      fetch(`${BASE}/analytics/track`, {
+      fetch("/api/analytics/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -84,7 +84,11 @@ export const api = {
     }
   },
 
-  stats: () => get<TrafficStats>("/analytics/stats"),
+  stats: async () => {
+    const res = await fetch("/api/analytics/stats", { cache: "no-store" });
+    if (!res.ok) throw new Error(`analytics/stats -> ${res.status}`);
+    return res.json() as Promise<TrafficStats>;
+  },
 
   // Count one on-device analysis. Fire-and-forget; never throws.
   recordAnalysis: (seconds = 0, frames = 0) => {

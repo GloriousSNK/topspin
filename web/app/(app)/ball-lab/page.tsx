@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { BallPrediction, LaunchInput } from "@/lib/types";
+import { BackendWakeupPanel } from "@/components/BackendStatus";
 
 // Court dimensions (m), mirrored from the physics service.
 const COURT_LEN = 23.77;
@@ -80,16 +81,9 @@ export default function BallLab() {
         bounce. Adjust the shot, then read off the flight and how sensitive it is.
       </p>
 
-      {err && (
-        <div className="card" style={{ borderColor: "var(--danger)", marginBottom: 18 }}>
-          <strong style={{ color: "var(--danger)" }}>The physics engine is waking up.</strong>{" "}
-          <span style={{ color: "var(--ink-soft)" }}>
-            The free server sleeps when idle and can take ~30s to start. This will retry on its own.
-          </span>
-          {process.env.NODE_ENV === "development" && (
-            <div className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8 }}>{api.base} — {err}</div>
-          )}
-        </div>
+      {!pred && (loading || err) && <BackendWakeupPanel title="Preparing the Ball Lab" />}
+      {err && process.env.NODE_ENV === "development" && (
+        <div className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12 }}>{api.base} — {err}</div>
       )}
 
       <div className="grid stack-mobile" style={{ gridTemplateColumns: "320px 1fr", alignItems: "start" }}>

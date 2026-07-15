@@ -818,3 +818,52 @@ html { scroll-behavior: smooth; }
   .roster-row time { display: none; }
   .report-shell { padding-top: 40px; }
 }
+
+/* Backend wake-up state. Render's free service can sleep between visits, so
+   startup is presented as a deliberate system state instead of a small error. */
+.backend-banner {
+  position: fixed; z-index: 90; left: 50%; bottom: 22px; width: min(760px, calc(100vw - 32px));
+  transform: translateX(-50%); display: grid; grid-template-columns: 96px 1fr auto auto;
+  align-items: center; gap: 18px; padding: 15px 16px;
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  border: 1px solid var(--line-hot); border-radius: 14px; box-shadow: 0 24px 70px -26px rgba(17,77,43,.55);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  animation: backend-enter .45s var(--ease) both;
+}
+.backend-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.backend-copy strong { font-family: var(--font-display), Georgia, serif; font-size: 18px; font-weight: 560; }
+.backend-copy span { color: var(--ink-soft); font-size: 12.5px; line-height: 1.45; }
+.backend-time { color: var(--green); font-size: 12px; min-width: 34px; }
+.backend-flight { position: relative; height: 42px; overflow: hidden; border-bottom: 1px solid var(--line-hot); }
+.backend-flight::before { content: ""; position: absolute; left: 50%; bottom: 0; height: 18px; border-left: 1px dashed var(--line); }
+.backend-flight span, .backend-court span {
+  position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 3px 8px rgba(120,140,20,.35); animation: backend-ball 1.8s var(--ease) infinite;
+}
+.backend-panel {
+  display: grid; grid-template-columns: minmax(190px, .65fr) minmax(260px, 1fr); align-items: center;
+  gap: clamp(24px, 5vw, 56px); margin: 0 0 22px; padding: clamp(24px, 4vw, 44px);
+  border: 1px solid var(--line-hot); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow);
+}
+.backend-panel h2 { margin: 8px 0 10px; font-family: var(--font-display), Georgia, serif; font-size: clamp(25px, 3vw, 36px); font-weight: 520; }
+.backend-panel p { max-width: 48ch; margin: 0 0 16px; color: var(--ink-soft); line-height: 1.6; }
+.backend-court { position: relative; min-height: 150px; overflow: hidden; border: 1px solid rgba(255,255,255,.7); border-radius: 10px; background: var(--green); }
+.backend-court::before { content: ""; position: absolute; inset: 14px; border: 1px solid rgba(255,255,255,.72); background: linear-gradient(90deg, transparent 49.7%, rgba(255,255,255,.7) 50%, transparent 50.3%); }
+.backend-court::after { content: ""; position: absolute; left: 14px; right: 14px; top: 50%; border-top: 2px solid rgba(255,255,255,.82); }
+.backend-court span { left: 16%; top: 65%; animation-duration: 2.2s; }
+@keyframes backend-enter { from { opacity: 0; transform: translate(-50%, 18px); } }
+@keyframes backend-ball {
+  0% { left: 6%; top: 72%; transform: scale(.8); }
+  48% { left: 50%; top: 12%; transform: scale(1); }
+  100% { left: 88%; top: 68%; transform: scale(.84); }
+}
+@media (max-width: 680px) {
+  .backend-banner { grid-template-columns: 62px 1fr auto; bottom: 12px; gap: 12px; }
+  .backend-banner .btn { grid-column: 2 / -1; width: fit-content; }
+  .backend-copy span { font-size: 11.5px; }
+  .backend-panel { grid-template-columns: 1fr; }
+  .backend-court { min-height: 112px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .backend-banner, .backend-flight span, .backend-court span { animation: none; }
+}
