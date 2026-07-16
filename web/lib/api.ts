@@ -9,6 +9,7 @@ import type {
   TrafficStats,
   GeneratedDrill,
 } from "./types";
+import { markBackendReady } from "./backendStatus";
 
 const BASE = process.env.NEXT_PUBLIC_ML_URL
   ?? (process.env.NODE_ENV === "production" ? "https://tennis-ml.onrender.com" : "http://127.0.0.1:8000");
@@ -20,12 +21,14 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${path} -> ${res.status} ${await res.text()}`);
+  markBackendReady();
   return res.json() as Promise<T>;
 }
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
+  markBackendReady();
   return res.json() as Promise<T>;
 }
 
@@ -47,6 +50,7 @@ export const api = {
     if (stroke) fd.append("stroke", stroke);
     const res = await fetch(`${BASE}/analyze/upload`, { method: "POST", body: fd });
     if (!res.ok) throw new Error(`upload -> ${res.status} ${await res.text()}`);
+    markBackendReady();
     return res.json() as Promise<{ clip_id: string; filename: string; size_bytes: number }>;
   },
 
@@ -87,6 +91,7 @@ export const api = {
   stats: async () => {
     const res = await fetch("/api/analytics/stats", { cache: "no-store" });
     if (!res.ok) throw new Error(`analytics/stats -> ${res.status}`);
+    markBackendReady();
     return res.json() as Promise<TrafficStats>;
   },
 
