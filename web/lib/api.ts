@@ -10,6 +10,7 @@ import type {
   GeneratedDrill,
 } from "./types";
 import { markBackendReady } from "./backendStatus";
+import { getSessionId } from "./analyticsSession";
 
 const BASE = process.env.NEXT_PUBLIC_ML_URL
   ?? (process.env.NODE_ENV === "production" ? "https://tennis-ml.onrender.com" : "http://127.0.0.1:8000");
@@ -106,6 +107,25 @@ export const api = {
       }).catch(() => {});
     } catch {
       /* ignore */
+    }
+  },
+
+  // Mark that this browser session actually USED a tool (analysis / simulation /
+  // workout), not just visited the page. Recorded via the session-carrying track
+  // proxy under a "/used/<tool>" path so "athletes served" can count real
+  // engagement. Fired at most once per tool per tab-session to keep the event
+  // log lean while still re-registering on later visits (survives pruning).
+  recordEngagement: (tool: string) => {
+    try {
+      if (typeof window === "undefined") return;
+      const key = `ts_used_${tool}`;
+      if (sessionStorage.getItem(key)) return;
+      const sid = getSessionId();
+      if (!sid) return;
+      sessionStorage.setItem(key, "1");
+      api.track(`/used/${tool}`, sid);
+    } catch {
+      /* analytics must never affect the app */
     }
   },
 };

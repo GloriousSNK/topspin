@@ -69,8 +69,10 @@ export default function BallLab() {
     return () => clearTimeout(t);
   }, [err, c, run]);
 
-  const set = (k: keyof Controls) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: keyof Controls) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    api.recordEngagement("ball-lab"); // athlete adjusted the shot — real simulator use
     setC((prev) => ({ ...prev, [k]: parseFloat(e.target.value) }));
+  };
 
   return (
     <div>

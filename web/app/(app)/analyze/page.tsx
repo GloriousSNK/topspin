@@ -62,6 +62,7 @@ export default function Analyze() {
       if (ownerId && activeUserId.current !== ownerId) return;
       setResult(res);
       api.recordAnalysis(res.seconds, res.videoFrames); // count it (no clip leaves the device)
+      api.recordEngagement("analyze"); // this athlete actually ran an analysis
       if (ownerId) {
         setSaveState("saving");
         const saved = await saveSession(res, ownerId).catch(() => false);

@@ -233,7 +233,7 @@ def stats() -> dict:
                 SUM(CASE WHEN kind = 'sim' THEN n ELSE 0 END),
                 SUM(CASE WHEN kind = 'help' THEN n ELSE 0 END),
                 SUM(CASE WHEN kind = 'help' THEN secs ELSE 0 END),
-                COUNT(DISTINCT session),
+                COUNT(DISTINCT CASE WHEN path LIKE '/used/%' THEN session END),
                 COUNT(DISTINCT CASE WHEN referrer <> '' THEN referrer END),
                 COUNT(DISTINCT CASE WHEN country <> '' THEN country END)
             FROM events"""
@@ -242,14 +242,18 @@ def stats() -> dict:
     finally:
         conn.close()
 
-    videos, sessions, sims, frames, footage_seconds, athletes, orgs, countries = r
+    # `active_athletes` (6th column) = unique browser sessions that actually USED
+    # a tool (analysis / simulation / workout), tracked via "/used/<tool>"
+    # engagement pings — not just anyone who loaded a page. The frontend adds the
+    # number of registered accounts to this to form the displayed "athletes served".
+    videos, sessions, sims, frames, footage_seconds, active_athletes, orgs, countries = r
     return {
         "videos_analyzed": videos,
         "practice_sessions": sessions,
         "simulations": sims,
         "frames_processed": frames,          # real total frames (fps x duration)
         "footage_seconds": footage_seconds,
-        "athletes_served": athletes,
+        "active_athletes": active_athletes,
         "orgs_reached": orgs,
         "countries_reached": countries,
         "generated_at": now,

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
+import { getSessionId } from "@/lib/analyticsSession";
 
 /**
  * Anonymous pageview tracking. Generates a random per-browser session id once
@@ -15,12 +16,8 @@ export default function Analytics() {
   useEffect(() => {
     if (path.startsWith("/consent") || path.startsWith("/auth")) return;
     try {
-      let sid = localStorage.getItem("ts_sid");
-      if (!sid) {
-        sid = crypto.randomUUID();
-        localStorage.setItem("ts_sid", sid);
-      }
-      api.track(path, sid, typeof document !== "undefined" ? document.referrer : "");
+      const sid = getSessionId();
+      if (sid) api.track(path, sid, typeof document !== "undefined" ? document.referrer : "");
     } catch {
       /* analytics must never affect the app */
     }

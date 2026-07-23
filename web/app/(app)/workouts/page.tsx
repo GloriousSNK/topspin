@@ -87,6 +87,7 @@ export default function Workouts() {
     setBusy(true); setErr(null); setWorkoutSaved(false); setWorkoutCompleted(false);
     try {
       setWorkout(await api.workoutByGoal(goal, level, minutes));
+      api.recordEngagement("workouts"); // this athlete actually built a workout
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed");
     } finally {
