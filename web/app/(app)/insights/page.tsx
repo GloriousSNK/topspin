@@ -27,7 +27,7 @@ export default function Insights() {
             <Metric value={stats.frames_processed} label="Frames processed" />
             <Metric value={footage(stats.footage_seconds)} label="Footage analyzed" />
             <Metric value={stats.athletes_served} label="Athletes served" accent />
-            <Metric value={stats.orgs_reached} label="Schools, clubs & teams reached" />
+            <Metric value={stats.orgs_reached} label="Organizations reached" />
             <Metric value={stats.countries_reached} label="Countries reached" accent />
           </div>
         </>
