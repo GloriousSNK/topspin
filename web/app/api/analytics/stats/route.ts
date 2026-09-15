@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 const ML = process.env.NEXT_PUBLIC_ML_URL ?? "https://tennis-ml.onrender.com";
 
-// Total registered accounts, via a SECURITY DEFINER RPC (supabase-account-count.sql).
+// Email-confirmed accounts, via a SECURITY DEFINER RPC (supabase-account-count.sql).
 // Best-effort: if Supabase isn't configured or the function isn't installed yet,
 // we fall back to 0 so the endpoint still returns usage numbers.
 async function accountCount(): Promise<number> {
