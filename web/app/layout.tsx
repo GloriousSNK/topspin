@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import Analytics from "@/components/Analytics";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { AuthProvider } from "@/components/AuthProvider";
 import { BackendStatusBanner } from "@/components/BackendStatus";
 import { SITE_URL, SITE_NAME, ORG_NAME, SITE_DESCRIPTION } from "@/lib/site";
@@ -106,6 +107,7 @@ export default function RootLayout({
         />
         <AuthProvider>{children}</AuthProvider>
         <Analytics />
+        <VercelAnalytics />
         <BackendStatusBanner />
       </body>
     </html>
