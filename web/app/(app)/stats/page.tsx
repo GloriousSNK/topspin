@@ -9,9 +9,17 @@ import type { Workout } from "@/lib/types";
 import { practiceDayStreak } from "@/lib/coachLogic";
 import { deleteLocalDrill, getLocalDrills, getLocalPracticeCompletions, getLocalSessions, renameLocalDrill } from "@/lib/localHistory";
 import { getPracticeCompletions, type PracticeCompletion } from "@/lib/coach";
+import { moveSessionToStudent } from "@/lib/students";
+import { ME, subjectStudentId, type Subject } from "@/lib/studentsLogic";
+import SubjectPicker, { useStudentFolders } from "@/components/SubjectPicker";
 
 export default function Stats() {
-  const { user, loading } = useAuth();
+  const { user, loading, role } = useAuth();
+  const coachId = user && role === "coach" ? user.id : null;
+  const students = useStudentFolders(coachId);
+  const canFile = !!coachId && students.state !== "setup";
+  const [historyNote, setHistoryNote] = useState<{ text: string; error?: boolean; href?: string } | null>(null);
+  const [moving, setMoving] = useState<string | null>(null);
   const [rows, setRows] = useState<SessionRow[]>([]);
   const [saved, setSaved] = useState<CustomDrillRow[]>([]);
   const [practice, setPractice] = useState<PracticeCompletion[]>([]);
@@ -83,6 +91,20 @@ export default function Stats() {
     if (!ok) setSaved(prev); // roll back if the write was rejected
   }
 
+  // Coaches: move a clip that was really a student out of their own history.
+  async function fileUnder(sessionId: string, next: Subject) {
+    const studentId = subjectStudentId(next);
+    if (!coachId || !studentId) return;
+    setMoving(sessionId); setHistoryNote(null);
+    const moved = await moveSessionToStudent(coachId, sessionId, studentId).catch(() => null);
+    if (activeUserId.current !== coachId) return;
+    setMoving(null);
+    if (moved) {
+      setRows((all) => all.filter((r) => r.id !== sessionId));
+      setHistoryNote({ text: `Moved to ${students.nameOf(next)}'s folder.`, href: `/students/${studentId}` });
+    } else setHistoryNote({ text: "Couldn't move that analysis. It's still in your history.", error: true });
+  }
+
   async function adaptive() {
     setBusy(true);
     try {
@@ -105,7 +127,7 @@ export default function Stats() {
     <div>
       <span className="eyebrow">Your numbers</span>
       <h1 className="h1">Stats</h1>
-      <p className="lead">{rows.length} analyses · {saved.length} saved. {user ? "Synced to your account." : "Kept only in this browser."}</p>
+      <p className="lead">{rows.length} analyses · {saved.length} saved. {user ? "Synced to your account." : "Kept only in this browser."}{coachId && <> Student clips live in <Link href="/students" style={{ color: "var(--court)" }}>Students</Link>.</>}</p>
 
       {nothing ? (
         <div className="card"><p style={{ color: "var(--ink-soft)" }}>
@@ -226,9 +248,20 @@ export default function Stats() {
           {rows.length > 0 && (
             <div className="card">
               <div className="card-title">History</div>
+              {canFile && (
+                <p style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 12, lineHeight: 1.55 }}>
+                  Some of these are students? File each one under the right person and it leaves your own numbers.
+                </p>
+              )}
+              {historyNote && (
+                <p role="status" style={{ color: historyNote.error ? "var(--danger)" : "var(--ink-soft)", fontSize: 13, marginBottom: 12 }}>
+                  {historyNote.error ? "⚠ " : "✓ "}{historyNote.text}{" "}
+                  {historyNote.href && <Link href={historyNote.href} style={{ color: "var(--court)", fontWeight: 600 }}>Open folder →</Link>}
+                </p>
+              )}
               <div className="table-wrap">
                 <table className="data">
-                  <thead><tr><th>Date</th><th>Stroke</th><th>Form</th><th>Serve</th></tr></thead>
+                  <thead><tr><th>Date</th><th>Stroke</th><th>Form</th><th>Serve</th>{canFile && <th>Who</th>}</tr></thead>
                   <tbody>
                     {rows.map((r) => (
                       <tr key={r.id}>
@@ -236,6 +269,13 @@ export default function Stats() {
                         <td style={{ textTransform: "capitalize" }}>{r.stroke}</td>
                         <td className="mono">{r.form_score}/100</td>
                         <td className="mono">{r.serve_speed ? `~${r.serve_speed} km/h` : "—"}</td>
+                        {canFile && (
+                          <td>
+                            <SubjectPicker id={`who-${r.id}`} label="Who is in this clip?" compact value={ME}
+                              onChange={(next) => fileUnder(r.id, next)} folders={students.folders}
+                              state={students.state} onAdd={students.add} disabled={moving !== null} />
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

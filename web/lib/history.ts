@@ -22,18 +22,19 @@ async function userMatches(expectedUserId: string): Promise<boolean> {
   return !error && data.user?.id === expectedUserId;
 }
 
-export async function saveSession(a: PoseAnalysis, expectedUserId: string): Promise<boolean> {
-  if (!supabase) return false;
-  if (!(await userMatches(expectedUserId))) return false;
-  const { error } = await supabase.from("sessions").insert({
+// Returns the new session id (so a coach can re-file it), or null on failure.
+export async function saveSession(a: PoseAnalysis, expectedUserId: string): Promise<string | null> {
+  if (!supabase) return null;
+  if (!(await userMatches(expectedUserId))) return null;
+  const { data, error } = await supabase.from("sessions").insert({
     user_id: expectedUserId,
     stroke: a.stroke,
     form_score: a.formScore,
     serve_speed: a.serveSpeedKmh ?? null,
     flaws: a.flaws,
     joint_feedback: a.jointFeedback,
-  });
-  return !error;
+  }).select("id").single();
+  return error || !data ? null : (data as { id: string }).id;
 }
 
 export async function deleteSessions(expectedUserId: string): Promise<boolean> {

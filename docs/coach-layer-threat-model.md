@@ -56,6 +56,8 @@ payload-size check + pruning if it's ever abused.
 | Display name | `profiles` | The player, and their squad coach. |
 | Birth year, guardian email, consent status | `account_consent` | The player only. **Coaches cannot read this.** Server (service role) handles approval. |
 | Squad code | `squads` | The coach who owns it. Players never SELECT this table. |
+| Student folder name + coach notes | `coach_students` | The coach who created it. Nobody else; the student has no account. |
+| Analyses the coach filed under a student | `coach_student_analyses` | The coach who owns the folder. |
 
 Column-level minimisation is done by *splitting tables*, because Postgres RLS is
 row-level only. That's why consent lives apart from `profiles`, and summaries
@@ -121,6 +123,22 @@ Deleting the auth user cascades (`on delete cascade`) through `account_consent`,
 `squads`, `squad_members`, `player_summaries`, `sessions`, `custom_drills`,
 `profiles`. Leaving a squad deletes the membership; **TODO(1b):** also delete
 that player's `player_summaries` on leave so sync data doesn't linger.
+
+**T10 — Coach-managed student folders (`supabase-coach-students.sql`).**
+Coaches analyse students who never sign up, so a folder is the coach's own
+notebook about a third party, who may be a minor. To keep that small:
+- Only a name (the UI asks for a first name or nickname), free-text notes and the
+  same analysis summary `sessions` holds. No clip, birth year, email, photo or
+  contact detail, and the folder links to no account.
+- Every policy is `coach_id = auth.uid()`; writes also require `is_coach()` and
+  `consent_ok()`. A composite FK `(student_id, coach_id)` means an analysis can
+  only be filed into a folder the same coach owns, even if someone guesses an id.
+- Moving a clip between the coach's history and a folder runs in one
+  SECURITY INVOKER function, so RLS applies to both halves and nothing is half-moved.
+- Size limits: 500 folders and 10,000 analyses per coach, and roughly 64 KB of JSON per row.
+- Deleting a folder cascades to its analyses. Deleting the coach's account
+  cascades to both tables.
+- The public summary link (`/s/<id>`) a coach can send never contains the student's name.
 
 ## Rate-limiting checklist (TODO 1b)
 - Login / magic-link request

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Workout } from "@/lib/types";
 import type { PoseAnalysis } from "@/lib/pose";
@@ -8,6 +9,10 @@ import { useAuth } from "@/components/AuthProvider";
 import { saveSession, createShare } from "@/lib/history";
 import { shareAnalysisWithCoach, syncPlayerSummary } from "@/lib/coach";
 import { saveLocalSession } from "@/lib/localHistory";
+import { recallSubject, refile, rememberSubject, saveStudentAnalysis, type Filed } from "@/lib/students";
+import { ME, studentSubject, subjectStudentId, type Subject } from "@/lib/studentsLogic";
+import SubjectPicker, { useStudentFolders } from "@/components/SubjectPicker";
+import ContactSkeleton from "@/components/ContactSkeleton";
 
 const STROKES = ["auto", "forehand", "backhand", "serve", "volley", "slice"];
 
@@ -24,25 +29,62 @@ export default function Analyze() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [coachShareState, setCoachShareState] = useState<"idle" | "sharing" | "shared" | "failed">("idle");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { user, enabled } = useAuth();
+  const { user, enabled, role } = useAuth();
   const activeUserId = useRef<string | null>(user?.id ?? null);
+  const isCoach = !!user && role === "coach";
+  const coachId = isCoach ? user.id : null;
+  const students = useStudentFolders(coachId);
+  const [chosenSubject, setChosenSubject] = useState<Subject>(ME);
+  const [filed, setFiled] = useState<Filed | null>(null);
+  const [refiling, setRefiling] = useState(false);
+
+  // Only file under a student once we know that folder exists; otherwise the
+  // analysis goes to the coach's own history as it always did.
+  const chosenStudent = subjectStudentId(chosenSubject);
+  const subject: Subject = !isCoach || (chosenStudent && students.state !== "loading"
+    && !(students.state === "ready" && students.folders.some((f) => f.id === chosenStudent))) ? ME : chosenSubject;
+  const subjectName = students.nameOf(subject);
+  const resultName = filed ? students.nameOf(filed.subject) : null;
 
   useEffect(() => {
     const previous = activeUserId.current;
     activeUserId.current = user?.id ?? null;
     if (previous && previous !== activeUserId.current) {
-      setResult(null); setWorkout(null); setShareUrl(null); setFilename(null); setSaveState("idle"); setCoachShareState("idle");
+      setResult(null); setWorkout(null); setShareUrl(null); setFilename(null); setSaveState("idle"); setCoachShareState("idle"); setFiled(null);
     }
   }, [user?.id]);
 
+  // Coaches start on the folder they came from (?student=) or the one they used last.
+  useEffect(() => {
+    if (!coachId) return;
+    const fromUrl = new URLSearchParams(window.location.search).get("student");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- URL and storage are external state
+    setChosenSubject(fromUrl ? studentSubject(fromUrl) : recallSubject(coachId) ?? ME);
+  }, [coachId]);
+
+  async function changeSubject(next: Subject) {
+    setChosenSubject(next);
+    if (coachId) rememberSubject(coachId, next);
+    // A clip that's already saved moves with the picker, so a wrong pick is one click to fix.
+    if (!coachId || !filed || filed.subject === next || saveState !== "saved") return;
+    setRefiling(true);
+    const moved = await refile(coachId, filed, next).catch(() => null);
+    if (activeUserId.current !== coachId) return;
+    setRefiling(false);
+    if (moved) { setFiled(moved); setShareUrl(null); }
+    else { setChosenSubject(filed.subject); setErr("Couldn't move that analysis. It's still where it was."); }
+  }
+
   async function handleFile(file: File) {
     const ownerId = user?.id ?? null;
+    const target = subject;
     setErr(null);
     setResult(null);
     setWorkout(null);
     setShareUrl(null);
     setSaveState("idle");
     setCoachShareState("idle");
+    setFiled(null);
     // Guard the drop path (the file dialog uses accept="video/*", but drag-drop
     // bypasses it): reject non-videos and absurdly large files up front so we
     // give a clear message instead of a cryptic decode error or a hung tab.
@@ -65,9 +107,19 @@ export default function Analyze() {
       api.recordEngagement("analyze"); // this athlete actually ran an analysis
       if (ownerId) {
         setSaveState("saving");
-        const saved = await saveSession(res, ownerId).catch(() => false);
-        await syncPlayerSummary(ownerId, res.stroke, res.formScore).catch(() => false);
-        if (activeUserId.current === ownerId) setSaveState(saved ? "saved" : "failed");
+        const studentId = subjectStudentId(target);
+        let savedId: string | null;
+        if (studentId) {
+          // A student's clip: file it in their folder and keep it out of the coach's own history.
+          savedId = await saveStudentAnalysis(ownerId, studentId, res).catch(() => null);
+        } else {
+          savedId = await saveSession(res, ownerId).catch(() => null);
+          await syncPlayerSummary(ownerId, res.stroke, res.formScore).catch(() => false);
+        }
+        if (activeUserId.current === ownerId) {
+          setSaveState(savedId ? "saved" : "failed");
+          setFiled(savedId ? { subject: studentId ? target : ME, id: savedId } : null);
+        }
       } else saveLocalSession(res);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't analyse that clip.");
@@ -129,6 +181,7 @@ export default function Analyze() {
         Upload a clip of one stroke. Pose detection tracks your body and checks your angles at
         contact, then turns what it finds into drills. It all runs on your device — nothing is
         uploaded, and you don&apos;t need an account.
+        {isCoach && <> Filming a student? Pick them below and the analysis goes in their <Link href="/students" style={{ color: "var(--court)", fontWeight: 600 }}>folder</Link>, not your own stats.</>}
       </p>
 
       <div className="card" style={{ marginBottom: 18, borderStyle: "dashed" }}>
@@ -149,6 +202,11 @@ export default function Analyze() {
 
       <div className="card" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+          {isCoach && (
+            <SubjectPicker id="subject" value={subject} onChange={changeSubject}
+              folders={students.folders} state={students.state} onAdd={students.add}
+              disabled={!!busy || refiling || saveState === "saving"} />
+          )}
           <div>
             <label className="label" htmlFor="stroke">Stroke</label>
             <select id="stroke" value={stroke} onChange={(e) => setStroke(e.target.value)} className="select">
@@ -185,15 +243,26 @@ export default function Analyze() {
 
       {result && (
         <>
-          {saveState === "saved" ? (
-            <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
-              ✓ Saved to your history. <a href="/stats" style={{ color: "var(--court)", fontWeight: 600 }}>See your stats →</a>
+          {saveState === "saved" && filed && subjectStudentId(filed.subject) ? (
+            <div className="filed-banner" role="status">
+              <span>✓ Filed in <strong>{students.nameOf(filed.subject)}</strong>&apos;s folder, not your own stats.</span>
+              <Link href={`/students/${subjectStudentId(filed.subject)}`}>Open folder →</Link>
+              {refiling && <span className="filed-moving">Moving…</span>}
+            </div>
+          ) : saveState === "saved" ? (
+            <div className={isCoach ? "filed-banner" : undefined} role="status" style={isCoach ? undefined : { marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
+              <span>✓ Saved to your history.</span> <a href="/stats" style={{ color: "var(--court)", fontWeight: 600 }}>See your stats →</a>
+              {isCoach && <span className="filed-moving">{refiling ? "Moving…" : "Student's clip? Pick them above to move it."}</span>}
             </div>
           ) : saveState === "saving" ? (
-            <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>Saving to your account…</div>
+            <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
+              {subjectName ? `Filing in ${subjectName}'s folder…` : "Saving to your account…"}
+            </div>
           ) : saveState === "failed" ? (
             <div role="alert" style={{ marginBottom: 14, fontSize: 14, color: "var(--danger)" }}>
-              This analysis stayed on this device and was not saved to your account.
+              {subjectName
+                ? `This analysis wasn't saved to ${subjectName}'s folder. It's still on screen, so take a screenshot if you need it.`
+                : "This analysis stayed on this device and was not saved to your account."}
             </div>
           ) : enabled ? (
             <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
@@ -257,8 +326,8 @@ export default function Analyze() {
             </div>
 
             <div className="card">
-              <div className="card-title">Your contact position</div>
-              <Skeleton skeleton={result.skeleton} />
+              <div className="card-title">{resultName ? `${resultName}'s` : "Your"} contact position</div>
+              <ContactSkeleton skeleton={result.skeleton} caption={resultName ? "contact frame" : "your contact frame"} />
               <div className="table-wrap" style={{ marginTop: 14 }}>
                 <table className="data">
                   <thead><tr><th>Check</th><th>Reading</th><th></th></tr></thead>
@@ -286,7 +355,12 @@ export default function Analyze() {
           {workout && <WorkoutCard w={workout} />}
 
           <div className="card" style={{ marginTop: 18 }}>
-            <div className="card-title">Share with a coach</div>
+            <div className="card-title">{isCoach ? `Send the results${resultName ? ` to ${resultName}` : ""}` : "Share with a coach"}</div>
+            {isCoach && !shareUrl && (
+              <p style={{ color: "var(--ink-soft)", fontSize: 13, lineHeight: 1.55, marginBottom: 12 }}>
+                A one-page summary link they can open on any phone, with no account. The video stays on this device.
+              </p>
+            )}
             {!enabled ? (
               <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>Accounts aren&apos;t set up on this deployment yet.</p>
             ) : !user ? (
@@ -304,7 +378,7 @@ export default function Analyze() {
             ) : (
               <button className="btn" onClick={makeShare} disabled={!!busy}>Create a shareable summary →</button>
             )}
-            {user && (
+            {user && !isCoach && (
               <div style={{ borderTop: "1px solid var(--line-soft)", marginTop: 16, paddingTop: 16 }}>
                 <p style={{ color: "var(--ink-soft)", fontSize: 13, lineHeight: 1.55, marginBottom: 10 }}>
                   Linked to a coach? Send this breakdown privately. The video itself stays on this device.
@@ -320,34 +394,6 @@ export default function Analyze() {
         </>
       )}
     </div>
-  );
-}
-
-function Skeleton({ skeleton }: { skeleton: Record<string, [number, number]> }) {
-  const W = 280, H = 260;
-  const p = (name: string) => skeleton[name] ? [skeleton[name][0] * W, skeleton[name][1] * H] : null;
-  const bones: [string, string][] = [
-    ["left_shoulder", "right_shoulder"], ["left_shoulder", "left_elbow"], ["left_elbow", "left_wrist"],
-    ["right_shoulder", "right_elbow"], ["right_elbow", "right_wrist"],
-    ["left_shoulder", "left_hip"], ["right_shoulder", "right_hip"], ["left_hip", "right_hip"],
-    ["left_hip", "left_knee"], ["left_knee", "left_ankle"], ["right_hip", "right_knee"], ["right_knee", "right_ankle"],
-    ["nose", "left_shoulder"], ["nose", "right_shoulder"],
-  ];
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 280, height: "auto", margin: "0 auto", display: "block",
-      background: "var(--paper-2)", border: "1px solid rgba(29,34,27,0.35)", borderRadius: 12 }}>
-      {bones.map(([a, b], i) => {
-        const pa = p(a), pb = p(b);
-        if (!pa || !pb) return null;
-        return <line key={i} x1={pa[0]} y1={pa[1]} x2={pb[0]} y2={pb[1]} stroke="var(--ink)" strokeWidth={3} strokeLinecap="round" />;
-      })}
-      {Object.keys(skeleton).map((name) => {
-        const pt = p(name);
-        if (!pt) return null;
-        return <circle key={name} cx={pt[0]} cy={pt[1]} r={4} fill="var(--accent)" stroke="var(--ink)" strokeWidth={1.5} />;
-      })}
-      <text x={W / 2} y={H - 8} fill="var(--ink-soft)" fontSize={10} fontWeight={600} textAnchor="middle">your contact frame</text>
-    </svg>
   );
 }
 

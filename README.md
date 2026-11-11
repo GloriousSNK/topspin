@@ -55,11 +55,14 @@ Run the Supabase migrations in this order:
 4. `supabase-security-hardening.sql`
 5. `supabase-complete-app.sql`
 6. `supabase-squad-code-fix.sql`
+7. `supabase-coach-students.sql`
 
-The final migration adds account roles, squads, database-backed squad-code throttling,
+`supabase-complete-app.sql` adds account roles, squads, database-backed squad-code throttling,
 minimal player summary sync, coach rosters, private analysis shares and notes, expiring
-parent reports, and complete squad cleanup. Code that depends on it fails closed until
-the migration is applied.
+parent reports, and complete squad cleanup. `supabase-coach-students.sql` adds coach-managed
+student folders: a coach files the clips they analyse under a named student (no account
+needed), then sorts, stars, renames, annotates and deletes them on the Students page. Code
+that depends on a migration fails closed until it is applied.
 
 Server-side account deletion and guardian email require these Vercel variables in
 addition to the two public Supabase variables:

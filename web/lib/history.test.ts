@@ -27,7 +27,9 @@ describe("account-scoped history writes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.from.mockReturnValue({ insert: mocks.insert });
-    mocks.insert.mockResolvedValue({ error: null });
+    mocks.insert.mockReturnValue({
+      select: () => ({ single: () => Promise.resolve({ data: { id: "session-1" }, error: null }) }),
+    });
   });
 
   it("refuses a write when the active account changed", async () => {
@@ -41,7 +43,7 @@ describe("account-scoped history writes", () => {
   it("writes only to the account captured when the action started", async () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: "account-a" } }, error: null });
 
-    await saveSession(analysis, "account-a");
+    await expect(saveSession(analysis, "account-a")).resolves.toBe("session-1");
 
     expect(mocks.from).toHaveBeenCalledWith("sessions");
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ user_id: "account-a" }));

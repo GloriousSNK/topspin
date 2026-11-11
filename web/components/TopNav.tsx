@@ -15,8 +15,9 @@ const PLAYER_PRIMARY: NavItem[] = [
 ];
 
 const COACH_PRIMARY: NavItem[] = [
-  { href: "/coach", label: "Roster" },
   { href: "/analyze", label: "Analyse" },
+  { href: "/students", label: "Students" },
+  { href: "/coach", label: "Roster" },
   { href: "/workouts", label: "Practice" },
   { href: "/stats", label: "Stats" },
 ];
