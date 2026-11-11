@@ -524,6 +524,10 @@ html { scroll-behavior: smooth; }
   display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
   gap: 40px; align-items: end;
 }
+/* Lift the copy and telemetry above the absolutely-positioned sim and scrim.
+   Without this, positioned layers paint over the static text and wash it out.
+   The canvas is excluded so it keeps pinning to the whole section. */
+.lp-hero-inner > :not(.lp-hero-canvas) { position: relative; z-index: 1; }
 .lp-hero h1 {
   font-family: var(--font-display), Georgia, serif;
   font-size: clamp(44px, 7vw, 88px);
