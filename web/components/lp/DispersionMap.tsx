@@ -235,20 +235,20 @@ export default function DispersionMap() {
   return (
     <div className="lp-panel">
       <div className="lp-panel-head">
-        <span>Landing ensemble · 320 flights</span>
-        <span className="val" aria-live="off"><span ref={pctRef}>— % IN</span></span>
+        <span>Where 320 shots land</span>
+        <span className="val" aria-live="off"><span ref={pctRef}>-- % IN</span></span>
       </div>
       <div className="lp-panel-body" ref={wrapRef}>
         {/* aspect-ratio reserves the final height before hydration (no shift) */}
         <canvas
           ref={canvasRef}
           style={{ aspectRatio: "25 / 18" }}
-          aria-label="Interactive shot dispersion map — move your cursor to aim"
+          aria-label="Shot spread map. Move your cursor to aim."
         />
       </div>
       <div className="lp-panel-foot">
         <span>MOVE CURSOR TO AIM</span>
-        <span>σ GROWS WITH DEPTH + LINE PROXIMITY</span>
+        <span>SPREAD GROWS NEAR THE LINES</span>
       </div>
     </div>
   );

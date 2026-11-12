@@ -24,8 +24,8 @@ const COACH_PRIMARY: NavItem[] = [
 
 const EXPLORE: NavItem[] = [
   { href: "/learn", label: "Learn", description: "The physics behind the ball" },
-  { href: "/insights", label: "Insights", description: "Live, anonymous platform totals" },
-  { href: "/about", label: "About", description: "Why TopSpin exists" },
+  { href: "/insights", label: "Insights", description: "How much TopSpin is being used" },
+  { href: "/about", label: "About", description: "Why we built TopSpin" },
 ];
 
 // Static per role, so they are built once rather than on every render.

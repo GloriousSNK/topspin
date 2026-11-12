@@ -32,12 +32,12 @@ export async function sendGuardianConsentEmail(to: string, approveUrl: string): 
         to,
         subject: "A young player needs your OK to connect with their coach on TopSpin",
         text:
-          "Someone under your care created a TopSpin account and wants to share their practice " +
-          "progress with their tennis coach.\n\n" +
-          "Only a summary syncs (scores, drills done, dates) — no video, and no full breakdown. " +
-          "They can use the rest of the app with no account at all.\n\n" +
+          "A young player you look after has made a TopSpin account and wants to share their " +
+          "practice progress with their tennis coach.\n\n" +
+          "The coach only sees a summary: scores, drills done and dates. No video and no full breakdown. " +
+          "They can already use the rest of the app. This approval is only for the coach connection.\n\n" +
           `To approve, open this link (it expires in 7 days and works once):\n${approveUrl}\n\n` +
-          "If you weren't expecting this, you can ignore this email and nothing will sync.",
+          "If you weren't expecting this, you can ignore this email and nothing will be shared.",
       }),
     });
     return res.ok;

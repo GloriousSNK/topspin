@@ -470,15 +470,15 @@ export default function PhysicsHero() {
         <div className="lp-telemetry-grid">
           <div className="lp-tele-item">
             <span className="lp-tele-k">Launch speed</span>
-            <span className="lp-tele-v"><span ref={vRef}>—</span><span className="u">km/h</span></span>
+            <span className="lp-tele-v"><span ref={vRef}>--</span><span className="u">km/h</span></span>
           </div>
           <div className="lp-tele-item">
             <span className="lp-tele-k">Topspin</span>
-            <span className="lp-tele-v"><span ref={spinRef}>—</span><span className="u">rpm</span></span>
+            <span className="lp-tele-v"><span ref={spinRef}>--</span><span className="u">rpm</span></span>
           </div>
           <div className="lp-tele-item">
             <span className="lp-tele-k">Apex</span>
-            <span className="lp-tele-v"><span ref={apexRef}>—</span><span className="u">m</span></span>
+            <span className="lp-tele-v"><span ref={apexRef}>--</span><span className="u">m</span></span>
           </div>
           <div className="lp-tele-item">
             <span className="lp-tele-k">Line call</span>

@@ -8,13 +8,12 @@ import { useTrafficStats } from "@/lib/useTrafficStats";
    the live "videos analysed" count, read from the same shared /analytics/stats
    source the Insights page uses, so the two always agree. */
 
-const FALLBACK_CLIPS = 88;
-
 // The stats hook hands back a fresh object on every 15s poll; the band only
 // depends on one number, so it is memoised on that and skips no-op renders.
 export default function LiveNumbers() {
   const stats = useTrafficStats();
-  return <Band clips={stats?.videos_analyzed ?? FALLBACK_CLIPS} />;
+  // Counts up from 0 once the real total arrives; never shows a made-up number.
+  return <Band clips={stats?.videos_analyzed ?? 0} />;
 }
 
 const Band = memo(function Band({ clips }: { clips: number }) {

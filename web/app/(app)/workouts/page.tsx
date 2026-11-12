@@ -98,7 +98,7 @@ export default function Workouts() {
       setWorkout(await api.workoutByGoal(goal, level, minutes));
       api.recordEngagement("workouts"); // this athlete actually built a workout
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed");
+      setErr(e instanceof Error ? e.message : "Couldn't build a session. Try again.");
     } finally {
       setBusy(false);
     }
@@ -120,7 +120,7 @@ export default function Workouts() {
       setSavedIds((prev) => new Set(prev).add(d.id));
       setSaveMsg({ ok: true, text: "Saved to your Stats page." });
     } else {
-      setSaveMsg({ ok: false, text: "Couldn't save — make sure you're signed in and try again." });
+      setSaveMsg({ ok: false, text: "Couldn't save. Make sure you're signed in and try again." });
     }
   }
 
@@ -134,7 +134,7 @@ export default function Workouts() {
     setWorkoutSaved(ok);
     setSaveMsg(ok
       ? { ok: true, text: "Workout saved to your Stats page." }
-      : { ok: false, text: "Couldn't save — make sure you're signed in and try again." });
+      : { ok: false, text: "Couldn't save. Make sure you're signed in and try again." });
   }
 
   async function completeGoalWorkout() {
@@ -157,8 +157,8 @@ export default function Workouts() {
       <span className="eyebrow">Practice</span>
       <h1 className="h1">Drills & Workouts</h1>
       <p className="lead">
-        Pick a goal and hit Generate for a ready-made session — or scroll down to browse all
-        {" "}{catalogue.length || 34} drills. Sessions from a clip analysis pull straight from here.
+        Pick a goal and hit Generate to get a ready-made session, or scroll down to browse
+        {" "}{catalogue.length ? `all ${catalogue.length}` : "the"} drills. Sessions built from a clip analysis use these same drills.
       </p>
 
       {catalogueLoading && <BackendWakeupPanel title="Loading the drill library" />}
@@ -201,7 +201,7 @@ export default function Workouts() {
       <div className="card" style={{ marginBottom: 18 }}>
         <div className="card-title">Search drills</div>
         <input className="select" style={{ width: "100%", textTransform: "none" }}
-          placeholder="Search by shot, skill or word — e.g. backhand, topspin, footwork, volley"
+          placeholder="Search by shot or skill, like backhand, topspin, footwork or volley"
           value={query} onChange={(e) => setQuery(e.target.value)} maxLength={100} />
         {query.trim() && (
           <div className="grid grid-2" style={{ marginTop: 14 }}>

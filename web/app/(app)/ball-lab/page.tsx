@@ -59,7 +59,7 @@ export default function BallLab() {
       if (id === reqId.current) { setPred(p); setShownFor(ctrl); } // ignore out-of-order stale responses
     } catch (e) {
       if (controller.signal.aborted) return;
-      if (id === reqId.current) setErr(e instanceof Error ? e.message : "Request failed");
+      if (id === reqId.current) setErr(e instanceof Error ? e.message : "Couldn't reach the server. Try again.");
     } finally {
       if (id === reqId.current) setLoading(false);
     }
@@ -92,13 +92,13 @@ export default function BallLab() {
       <span className="eyebrow">Lab</span>
       <h1 className="h1">Ball Lab</h1>
       <p className="lead">
-        A struck ball is a nonlinear system, so tiny differences at contact grow on the way to the
-        bounce. Adjust the shot, then read off the flight and how sensitive it is.
+        Set up a shot and see where it lands. Small differences at contact grow during the flight,
+        so the Ball Lab also shows how much room for error the shot has.
       </p>
 
       {!pred && (loading || err) && <BackendWakeupPanel title="Preparing the Ball Lab" />}
       {err && process.env.NODE_ENV === "development" && (
-        <div className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12 }}>{api.base} — {err}</div>
+        <div className="mono" style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12 }}>{api.base}: {err}</div>
       )}
 
       <div className="grid stack-mobile" style={{ gridTemplateColumns: "320px 1fr", alignItems: "start" }}>
@@ -132,7 +132,7 @@ export default function BallLab() {
                 <Stat label="Impact speed" value={`${pred.impact_speed_ms} m/s`} />
                 <Stat label="Spin" value={`${Math.round(pred.spin_rpm)} rpm`} />
                 <Stat label="Carry"
-                  value={pred.landing ? `${pred.landing[0].toFixed(1)} m` : "—"} />
+                  value={pred.landing ? `${pred.landing[0].toFixed(1)} m` : "-"} />
               </div>
 
               <div className="lp-panel">
@@ -150,7 +150,7 @@ export default function BallLab() {
               <div className="grid grid-2">
                 <div className="lp-panel">
                   <div className="lp-panel-head">
-                    <span>Landing ensemble</span>
+                    <span>Where it could land</span>
                     {pred.ensemble && <span className="val">{(pred.ensemble.in_probability * 100).toFixed(0)}% IN</span>}
                   </div>
                   <div style={{ padding: 18 }}>
@@ -166,7 +166,7 @@ export default function BallLab() {
 
                 <div className="lp-panel">
                   <div className="lp-panel-head">
-                    <span>Chaos · contact sensitivity</span>
+                    <span>Sensitivity to contact</span>
                     {pred.chaos && <span className="val">λ {pred.chaos.lyapunov_estimate.toFixed(2)}</span>}
                   </div>
                   {pred.chaos && (
@@ -175,7 +175,7 @@ export default function BallLab() {
                         <div className="grid grid-2" style={{ marginBottom: 12 }}>
                           <Stat label="Lyapunov λ" value={pred.chaos.lyapunov_estimate.toFixed(2)}
                             color={pred.chaos.lyapunov_estimate > 1.5 ? "var(--danger)" : "var(--court)"} />
-                          <Stat label="Predict. horizon"
+                          <Stat label="Predictable for"
                             value={pred.chaos.predictability_horizon_s > 0 ? `${pred.chaos.predictability_horizon_s}s` : "∞"} />
                         </div>
                         <DivergenceMemo curve={pred.chaos.divergence_curve} />

@@ -142,7 +142,7 @@ export default function Analyze() {
       setBusy(BUILDING);
       setWorkout(await api.workoutFromFlaws(result.flaws, "intermediate", 45));
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed");
+      setErr(e instanceof Error ? e.message : "Couldn't build a session. Try again.");
     } finally {
       setBusy(null);
     }
@@ -187,8 +187,8 @@ export default function Analyze() {
       <h1 className="h1">Clip Analysis</h1>
       <p className="lead">
         Upload a clip of one stroke. Pose detection tracks your body and checks your angles at
-        contact, then turns what it finds into drills. It all runs on your device — nothing is
-        uploaded, and you don&apos;t need an account.
+        contact, then turns what it finds into drills. It all runs on your device, so nothing is
+        uploaded and you don&apos;t need an account.
         {isCoach && <> Filming a student? Pick them below and the analysis goes in their <Link href="/students" style={{ color: "var(--court)", fontWeight: 600 }}>folder</Link>, not your own stats.</>}
       </p>
 
@@ -198,11 +198,11 @@ export default function Analyze() {
           <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8, fontSize: 14, color: "var(--ink-soft)" }}>
             <li>› <strong style={{ color: "var(--ink)" }}>Film from the side</strong>, level with you, not head-on.</li>
             <li>› <strong style={{ color: "var(--ink)" }}>Whole body in frame</strong> through the entire swing.</li>
-            <li>› <strong style={{ color: "var(--ink)" }}>One stroke per clip</strong>, about 2–5 seconds.</li>
+            <li>› <strong style={{ color: "var(--ink)" }}>One stroke per clip</strong>, about 2 to 5 seconds long.</li>
           </ul>
           <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: 8, fontSize: 14, color: "var(--ink-soft)" }}>
             <li>› <strong style={{ color: "var(--ink)" }}>Good light</strong>, and a plain-ish background helps.</li>
-            <li>› <strong style={{ color: "var(--ink)" }}>Steady camera</strong> — prop the phone up, don&apos;t pan.</li>
+            <li>› <strong style={{ color: "var(--ink)" }}>Steady camera</strong>. Prop the phone up and don&apos;t pan.</li>
             <li>› <strong style={{ color: "var(--ink)" }}>Capture the finish</strong>, not just up to contact.</li>
           </ul>
         </div>
@@ -290,7 +290,7 @@ export default function Analyze() {
                 <span className="stat-label">Estimated serve speed · {Math.round(result.serveSpeedKmh * 0.621)} mph</span>
               </div>
               <span style={{ color: "var(--ink-soft)", fontSize: 12, maxWidth: 240, marginLeft: "auto" }}>
-                A rough read from hand speed and body scale, not a radar gun.
+                A rough estimate from hand speed and body size. A radar gun will be more accurate.
               </span>
             </div>
           ) : stroke === "serve" ? null : (
@@ -309,7 +309,7 @@ export default function Analyze() {
 
               {result.flaws.length === 0 ? (
                 <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>
-                  Nothing major at contact. Keep grooving it and check your margin in the Ball Lab.
+                  Nothing major showed up at contact. Try the Ball Lab to see how much margin your shots have.
                 </p>
               ) : (
                 result.flaws.map((f) => (
@@ -357,7 +357,7 @@ export default function Analyze() {
                 </table>
               </div>
               <p style={{ color: "var(--ink-soft)", fontSize: 12, marginTop: 10 }}>
-                Measured from {result.framesAnalyzed} frames at your peak-swing moment.
+                Measured from {result.framesAnalyzed} frames around the moment of contact.
               </p>
             </div>
           </div>

@@ -44,7 +44,7 @@ export default function ParentReportPage() {
       </tbody></table></div>
       {report.note && <p style={{ marginTop: 16 }}>{report.note}</p>}
     </div>
-    <p style={{ color: "var(--ink-soft)", fontSize: 12, marginTop: 16 }}>Private-by-link report. It expires automatically after 30 days.</p>
+    <p style={{ color: "var(--ink-soft)", fontSize: 12, marginTop: 16 }}>Only people with this link can open this report. It expires after 30 days.</p>
   </main>;
 }
 

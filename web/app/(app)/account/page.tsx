@@ -13,9 +13,9 @@ import {
 
 const PERKS = [
   ["Save every analysis", "Your form scores and flaws are kept, so you can look back."],
-  ["Track your progress", "Watch your form trend climb over weeks, not guess at it."],
+  ["Track your progress", "See how your form score changes week to week."],
   ["Train your weak spots", "Turn your recurring flaws into a session in one click."],
-  ["Share with a coach", "Send a clean one-page summary before your next lesson."],
+  ["Share with a coach", "Send your coach a one-page summary before your next lesson."],
 ];
 
 export default function Account() {
@@ -101,7 +101,7 @@ export default function Account() {
     setBusy(true); setMsg(null); setOk(null);
     const err = mode === "in" ? await signIn(email, pw) : await signUp(email, pw);
     if (err) setMsg(err);
-    else if (mode === "up") setOk("Almost there — check your email for a confirmation link, then sign in.");
+    else if (mode === "up") setOk("Almost there. Check your email for a confirmation link, then sign in.");
     setPw("");
     setBusy(false);
   }
@@ -255,7 +255,7 @@ export default function Account() {
         <div className="card">
           <div className="card-title">Your data</div>
           <p style={{ color: "var(--ink-soft)", fontSize: 14, marginBottom: 12 }}>
-            We store your email, your birth year, your saved analyses, and — only if you&apos;re under 16 —
+            We store your email, your birth year, your saved analyses and, if you&apos;re under 16,
             a guardian email for consent. Clips are never uploaded. You can wipe your history any time, and
             deleting your account removes all of it. See the{" "}
             <Link href="/privacy" style={{ color: "var(--court)", fontWeight: 600 }}>privacy page</Link>.
@@ -384,7 +384,7 @@ function AgeGate({ userId, email, onDone, onSignOut }: {
       <h1 className="h1">Before we finish setting up</h1>
       <p className="lead">
         We ask everyone their birth year once. If you&apos;re under {16}, a parent or guardian just
-        needs to say it&apos;s OK before you can connect with a coach — you can use everything else
+        needs to say it&apos;s OK before you can connect with a coach. You can use everything else
         in the meantime.
       </p>
 
@@ -446,7 +446,7 @@ function PendingConsentBanner({ guardianEmail, onResend }: {
       <p style={{ color: "var(--ink-soft)", fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>
         We emailed {guardianEmail ? <strong style={{ color: "var(--ink)" }}>{guardianEmail}</strong> : "your guardian"} a
         link to approve your account. Until they do, you can analyse clips, run drills, and use the
-        Ball Lab as normal — you just can&apos;t connect with a coach yet.
+        Ball Lab as normal. You just can&apos;t connect with a coach yet.
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button className="btn btn-ghost" onClick={resend} disabled={state === "busy" || state === "sent"}>

@@ -77,7 +77,7 @@ export default function CoachPlayerPage() {
       </div>
 
       <div className="card" style={{ marginBottom: 18 }}>
-        <div className="card-title">Score line</div>
+        <div className="card-title">Form scores</div>
         {scores.length ? <div className="score-line" aria-label="Form score history">
           {scores.slice().reverse().map((s) => <span key={s.id} style={{ height: `${Math.max(4, s.form_score ?? 0)}%` }} title={`${s.form_score}/100`} />)}
         </div> : <p style={{ color: "var(--ink-soft)" }}>No scored sessions yet.</p>}
@@ -92,7 +92,7 @@ export default function CoachPlayerPage() {
 
       <div className="card">
         <div className="card-title">Parent report</div>
-        <p style={{ color: "var(--ink-soft)", fontSize: 14, marginBottom: 12 }}>Create a private-by-link, 30-day snapshot with recent scores and practice.</p>
+        <p style={{ color: "var(--ink-soft)", fontSize: 14, marginBottom: 12 }}>Make a link a parent can open to see recent scores and practice. It stops working after 30 days.</p>
         {reportUrl ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><input className="select" readOnly value={reportUrl} style={{ flex: 1 }} /><button className="btn" onClick={() => navigator.clipboard.writeText(reportUrl)}>Copy link</button></div>
           : <button className="btn" onClick={report} disabled={creatingReport}>{creatingReport ? "Creating report…" : "Create parent report"}</button>}
         {error && <div role="alert" style={{ color: "var(--danger)", marginTop: 10 }}>{error}</div>}

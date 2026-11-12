@@ -115,11 +115,11 @@ def finite_time_lyapunov(
     ]
 
     if lyap > 1.5:
-        interp = "Highly sensitive: small contact errors blow up fast. Margin matters."
+        interp = "Very sensitive. Small mistakes at contact grow quickly, so give yourself plenty of margin."
     elif lyap > 0.4:
-        interp = "Moderately sensitive: spin/angle precision noticeably affects the result."
+        interp = "Fairly sensitive. Getting the spin and angle right makes a real difference here."
     else:
-        interp = "Stable shot: forgiving of small contact variations."
+        interp = "Forgiving. Small differences at contact won't change much."
 
     return SensitivityReport(
         lyapunov_estimate=round(lyap, 4),

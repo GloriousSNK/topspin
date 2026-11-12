@@ -41,13 +41,13 @@ export default function SharePage({ params }: { params: Promise<{ id: string }> 
       </div>
 
       <div className="card">
-        <div className="card-title">Stroke summary for a coach</div>
+        <div className="card-title">Stroke summary</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6, flexWrap: "wrap" }}>
           <span style={{ fontSize: 26, fontWeight: 800, textTransform: "capitalize" }}>{data.stroke}</span>
           <span className="pill accent">form {data.formScore}/100</span>
           {data.serveSpeedKmh && <span className="pill">~{data.serveSpeedKmh} km/h serve</span>}
         </div>
-        <p style={{ color: "var(--ink-soft)", fontSize: 13 }}>Auto-generated from a single clip. A rough read to look at before the lesson, not a substitute for a coach&apos;s eye.</p>
+        <p style={{ color: "var(--ink-soft)", fontSize: 13 }}>Based on one clip. Use it as a starting point for the next lesson, alongside watching the player hit.</p>
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>

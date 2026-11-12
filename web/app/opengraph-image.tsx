@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 // A branded 1200×630 card for link previews (Google, iMessage, socials).
-export const alt = "TopSpin — The physics of a better game";
+export const alt = "TopSpin: The physics of a better game";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -48,7 +48,7 @@ export default function OpengraphImage() {
 
         {/* footer line */}
         <div style={{ fontSize: 26, color: "#5a6152", fontFamily: "monospace" }}>
-          On-device stroke analysis · Real drag + Magnus physics
+          Stroke analysis on your device · Real ball-flight physics
         </div>
       </div>
     ),

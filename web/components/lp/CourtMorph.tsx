@@ -121,7 +121,7 @@ export default function CourtMorph() {
   return (
     <div className="lp-panel" ref={wrapRef}>
       <div className="lp-panel-head">
-        <span>Pose extraction</span>
+        <span>Pose tracking</span>
         <span className="val">33 LANDMARKS</span>
       </div>
       <div className="lp-panel-body">
@@ -152,7 +152,7 @@ export default function CourtMorph() {
         </svg>
       </div>
       <div className="lp-panel-foot">
-        <span>SCROLL — THE COURT LEARNS TO SEE YOU</span>
+        <span>SCROLL TO TRACE THE POSE</span>
         <span>MEDIAPIPE · ON-DEVICE</span>
       </div>
     </div>

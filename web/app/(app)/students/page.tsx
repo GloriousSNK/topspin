@@ -81,7 +81,7 @@ export default function StudentsPage() {
               value={query} onChange={(e) => setQuery(e.target.value)} />
             <select className="select" aria-label="Sort students" value={sort} onChange={(e) => setSort(e.target.value as FolderSort)}>
               <option value="recent">Recently active</option>
-              <option value="name">Name A–Z</option>
+              <option value="name">Name A-Z</option>
               <option value="count">Most analyses</option>
             </select>
           </div>

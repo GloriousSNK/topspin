@@ -80,14 +80,14 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
     <section id="coach-connection" className="card" style={{ marginBottom: 18, scrollMarginTop: 88 }} aria-labelledby="coach-connection-title">
       <div className="card-title">Coach connection</div>
       <h2 id="coach-connection-title" style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 25, fontWeight: 500, marginBottom: 8 }}>
-        Train together, only when you choose to
+        Connect with a coach (optional)
       </h2>
       <p style={{ color: "var(--ink-soft)", fontSize: 14, lineHeight: 1.6, marginBottom: 16 }}>
-        TopSpin works without this. Connecting only syncs scores, completed practice, and dates. Clips stay on your device unless you share an analysis yourself.
+        You don&apos;t need this to use TopSpin. If you connect, your coach sees your scores, completed practice and dates. Your clips stay on your device unless you send an analysis yourself.
       </p>
 
       {!consentReady ? (
-        <div className="subcard">Guardian approval is needed before coach sync can start.</div>
+        <div className="subcard">A parent or guardian needs to approve this before your coach can see anything.</div>
       ) : loading ? (
         <div role="status" className="subcard skeleton" style={{ color: "var(--ink-soft)", minHeight: 72 }}>Loading…</div>
       ) : !context?.role ? (

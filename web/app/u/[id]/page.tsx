@@ -85,7 +85,7 @@ export default function PublicProfile({ params }: { params: Promise<{ id: string
       <div className="grid grid-4" style={{ marginBottom: 18 }}>
         <Stat v={stats.avg} l="Average form" accent />
         <Stat v={stats.best} l="Best form" />
-        <Stat v={stats.topServe ? `${stats.topServe}` : "—"} l="Top serve (km/h)" />
+        <Stat v={stats.topServe ? `${stats.topServe}` : "-"} l="Top serve (km/h)" />
         <Stat v={stats.count} l="Sessions" />
       </div>
 

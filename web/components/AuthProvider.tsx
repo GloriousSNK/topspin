@@ -21,7 +21,7 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
-const notConfigured = "Accounts are not configured.";
+const notConfigured = "Accounts aren't available right now.";
 
 // Known synchronously from build-inlined env vars — lets us decide render state
 // (and skip loading the SDK entirely) without importing @supabase/supabase-js.
@@ -68,9 +68,9 @@ function sameUser(a: User | null, b: User | null): boolean {
 // Turn Supabase's terse errors into something a person can act on.
 function friendly(msg: string): string {
   const m = msg.toLowerCase();
-  if (m.includes("not confirmed")) return "Confirm your email first — check your inbox, or use Google below.";
+  if (m.includes("not confirmed")) return "Confirm your email first. Check your inbox, or sign in with Google below.";
   if (m.includes("invalid login")) return "Wrong email or password. If you just signed up, confirm your email first (or resend below).";
-  if (m.includes("already registered")) return "That email already has an account — try signing in.";
+  if (m.includes("already registered")) return "That email already has an account. Try signing in instead.";
   return msg;
 }
 

@@ -47,7 +47,7 @@ export function BackendStatusBanner() {
       <div className="backend-flight" aria-hidden="true"><span /></div>
       <div className="backend-copy">
         <strong>{status === "error" ? "Still starting the TopSpin server" : "Starting the TopSpin server"}</strong>
-        <span>The free physics server sleeps between visits. Keep this tab open and we’ll continue automatically.</span>
+        <span>Our free server goes to sleep when nobody is using it. Keep this tab open and things will carry on once it wakes up.</span>
       </div>
       <span className="backend-time mono">{elapsed}s</span>
       {status === "error" && <button className="btn btn-ghost" onClick={() => void warmBackend(true)}>Try again</button>}
@@ -64,7 +64,7 @@ export function BackendWakeupPanel({ title = "Starting the TopSpin server" }: { 
       <div>
         <span className="eyebrow">Server status</span>
         <h2>{title}</h2>
-        <p>The free server may need about 30 seconds after sitting idle. This page will update on its own.</p>
+        <p>It can take about 30 seconds to wake up after a quiet spell. This page will update by itself.</p>
         {status === "error" && <button className="btn btn-ghost" onClick={() => void warmBackend(true)}>Try again</button>}
       </div>
     </div>

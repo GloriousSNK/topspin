@@ -5,5 +5,5 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://topspin-la
 export const SITE_NAME = "TopSpin";
 export const ORG_NAME = "TopSpin Labs";
 export const SITE_DESCRIPTION =
-  "Film one stroke and TopSpin reads your form on-device, then predicts your ball " +
-  "flight with real drag and Magnus physics. Your footage never leaves your phone.";
+  "Film one stroke and TopSpin checks your form on your own device, then simulates where " +
+  "the ball goes using real drag and spin physics. Your video is never uploaded.";

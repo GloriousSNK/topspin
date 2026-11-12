@@ -10,8 +10,8 @@ import { Reveal, Magnetic } from "@/components/lp/Motion";
 export const metadata: Metadata = {
   title: { absolute: "TopSpin · The physics of a better game" },
   description:
-    "Film one stroke. TopSpin reads your form on your own device, then predicts your ball " +
-    "flight with real drag and Magnus physics. Your footage never leaves your phone.",
+    "Film one stroke and TopSpin checks your form on your own device, then simulates where " +
+    "the ball goes using real drag and spin physics. Your video is never uploaded.",
 };
 
 export default function Landing() {
@@ -22,13 +22,13 @@ export default function Landing() {
         <div className="lp-hero-scrim" aria-hidden="true" />
         <div className="container lp-hero-inner">
           <div>
-            <span className="eyebrow">TopSpin · Practice intelligence</span>
+            <span className="eyebrow">TopSpin · Stroke analysis and ball flight</span>
             <h1>
               The physics of a <em>better game.</em>
             </h1>
             <p className="lp-hero-sub">
-              Film one stroke. TopSpin reads your body the way a coach would, flies your ball
-              the way an engineer would, and hands you the one thing worth fixing.
+              Film one stroke and TopSpin checks your form, shows where that ball would land,
+              and tells you what to work on first.
             </p>
             <div className="lp-hero-cta">
               <Magnetic>
@@ -39,7 +39,7 @@ export default function Landing() {
               </Magnetic>
             </div>
             <p className="lp-hero-note">
-              <b>ON-DEVICE.</b> Your footage never leaves your phone. No sign-up to try it.
+              <b>ON-DEVICE.</b> Your video is analysed on your device and never uploaded. No account needed.
             </p>
           </div>
           <PhysicsHero />
@@ -56,15 +56,14 @@ export default function Landing() {
           <div>
             <Reveal><span className="lp-sec-num">01 / FLIGHT</span></Reveal>
             <Reveal delay={60}>
-              <h2 className="lp-h2">A struck ball is a chaotic system, so we treat it like one.</h2>
+              <h2 className="lp-h2">Why the same swing doesn&apos;t land in the same spot.</h2>
             </Reveal>
             <Reveal delay={120}>
               <p className="lp-body">
-                Once it leaves your strings the ball feels three things: gravity, drag from the
-                air, and the Magnus force from spin. There&apos;s no clean formula for where that
-                lands, so we don&apos;t fake one with a smooth arc. We march the flight forward
-                step by step, then fly it a few hundred times with tiny variations to get honest
-                odds.
+                After the ball leaves your strings, three things act on it: gravity, air drag and
+                the Magnus force from spin. There&apos;s no neat formula for where it lands, so we
+                simulate the flight in tiny time steps. Then we run it a few hundred more times
+                with small changes to speed, angle and spin to get a realistic in/out percentage.
               </p>
             </Reveal>
             <Reveal delay={180}>
@@ -74,12 +73,12 @@ export default function Landing() {
             </Reveal>
             <Reveal delay={240}>
               <p className="lp-body" style={{ marginBottom: 26 }}>
-                Aim the reticle and watch the spread grow as you get greedy with depth and the
-                lines. That spread is the margin you&apos;re actually playing with.
+                Move the target around the court. The closer you aim to the lines, the more of
+                the spread lands out. That spread is your real margin for error.
               </p>
             </Reveal>
             <Reveal delay={300}>
-              <Link href="/ball-lab" className="btn btn-ghost">Run your own numbers →</Link>
+              <Link href="/ball-lab" className="btn btn-ghost">Try it in the Ball Lab →</Link>
             </Reveal>
           </div>
           <DispersionMap />
@@ -93,14 +92,14 @@ export default function Landing() {
           <div>
             <Reveal><span className="lp-sec-num">02 / FORM</span></Reveal>
             <Reveal delay={60}>
-              <h2 className="lp-h2">The court learns to <em>see you.</em></h2>
+              <h2 className="lp-h2">See what your body is <em>actually doing.</em></h2>
             </Reveal>
             <Reveal delay={120}>
               <p className="lp-body">
-                Drop in a clip and a pose model traces 33 landmarks through your swing, frame by
-                frame, right on your device. At contact we measure your elbow, knee and trunk
-                angles against stroke-specific targets, then score the whole motion out of 100.
-                You won&apos;t get generic tips. The feedback is about the swing you actually made.
+                Upload a clip and a pose model tracks 33 points on your body through the swing,
+                right on your device. At the moment of contact it measures your elbow, knee and
+                trunk angles, compares them with good positions for that stroke, and scores the
+                swing out of 100. Every note you get comes from your own clip.
               </p>
             </Reveal>
             <Reveal delay={200}>
@@ -126,14 +125,14 @@ export default function Landing() {
           <div>
             <Reveal><span className="lp-sec-num">03 / TRAINING</span></Reveal>
             <Reveal delay={60}>
-              <h2 className="lp-h2">Your session assembles itself.</h2>
+              <h2 className="lp-h2">A practice plan for what it found.</h2>
             </Reveal>
             <Reveal delay={120}>
               <p className="lp-body">
-                Every flaw the analysis turns up is wired to drills that fix it. Your worst habit
-                gets worked first, the session fits the minutes you actually have, and every line
-                tells you why it&apos;s there. Saved workouts sit on your Stats page next to your
-                form trend, so the loop closes on its own.
+                Each problem the analysis finds is linked to drills that work on it. The biggest
+                one comes first, the session fits the time you have, and each drill says which
+                problem it&apos;s for. Saved sessions show up on your Stats page next to your form
+                scores, so you can see whether the practice is paying off.
               </p>
             </Reveal>
             <Reveal delay={200}>
@@ -142,7 +141,7 @@ export default function Landing() {
           </div>
           <div className="lp-panel">
             <div className="lp-panel-head">
-              <span>Generated session</span>
+              <span>Sample session</span>
               <span className="val">24 MIN</span>
             </div>
             <div>
@@ -163,8 +162,8 @@ export default function Landing() {
               ))}
             </div>
             <div className="lp-panel-foot">
-              <span>PRIORITISED BY FLAW SEVERITY</span>
-              <span>FITS YOUR TIME BUDGET</span>
+              <span>BIGGEST PROBLEM FIRST</span>
+              <span>FITS YOUR TIME</span>
             </div>
           </div>
         </div>
@@ -177,10 +176,10 @@ export default function Landing() {
       <section className="lp-statement">
         <div className="container">
           <Reveal>
-            <h2>Your footage stays on your phone. <em>Full stop.</em></h2>
+            <h2>Your videos stay <em>on your device.</em></h2>
           </Reveal>
           <Reveal delay={120}>
-            <p>Pose runs in your browser · No account required · Analytics self-hosted, cookie-free</p>
+            <p>Pose tracking runs in your browser · No account needed · Our own analytics, no cookies</p>
           </Reveal>
         </div>
       </section>
@@ -189,10 +188,10 @@ export default function Landing() {
       <section className="lp-cta">
         <div className="container">
           <Reveal>
-            <h2>Curious what your forehand is hiding?</h2>
+            <h2>Want a second look at your forehand?</h2>
           </Reveal>
           <Reveal delay={100}>
-            <p>One clip. A few seconds. One clear thing to fix.</p>
+            <p>Film a few seconds of one stroke and see what TopSpin picks up.</p>
           </Reveal>
           <Reveal delay={200}>
             <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
@@ -200,7 +199,7 @@ export default function Landing() {
                 <Link href="/analyze" className="btn btn-lg">Analyse my stroke</Link>
               </Magnetic>
               <Magnetic>
-                <Link href="/learn" className="btn btn-ghost btn-lg">Read the physics</Link>
+                <Link href="/learn" className="btn btn-ghost btn-lg">How the physics works</Link>
               </Magnetic>
             </div>
           </Reveal>

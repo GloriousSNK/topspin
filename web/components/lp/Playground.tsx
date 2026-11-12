@@ -169,17 +169,17 @@ export function ScrollFlight() {
   return (
     <div className="lp-panel">
       <div className="lp-panel-head">
-        <span>One swing, three physics</span>
-        <span className="val">PARABOLA LIES BY <span ref={gapRef}>0.0 M</span></span>
+        <span>One swing, three ways</span>
+        <span className="val">PARABOLA OFF BY <span ref={gapRef}>0.0 M</span></span>
       </div>
       <div style={{ padding: "18px 18px 10px" }} ref={wrapRef}>
         <canvas ref={canvasRef} aria-label="The same swing drawn three ways: vacuum parabola, with drag, and with drag plus spin" />
       </div>
       <div className="lp-panel-foot">
         <span style={{ color: "rgba(29,34,27,0.45)" }}>· · · TEXTBOOK</span>
-        <span style={{ color: "var(--court)" }}>— + AIR</span>
-        <span style={{ color: "var(--green)" }}>— + SPIN</span>
-        <span>DRAWN BY YOUR SCROLL</span>
+        <span style={{ color: "var(--court)" }}>━ + AIR</span>
+        <span style={{ color: "var(--green)" }}>━ + SPIN</span>
+        <span>SCROLL TO PLAY</span>
       </div>
     </div>
   );

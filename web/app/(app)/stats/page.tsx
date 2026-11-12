@@ -81,7 +81,7 @@ export default function Stats() {
     if (activeUserId.current !== ownerId) return;
     if (!ok) {
       setSaved(prev); // roll back so the UI stays honest
-      setNote("Couldn't delete that one. If it keeps coming back, your database is missing the delete policy — re-run supabase-setup.sql.");
+      setNote("Couldn't delete that one. Refresh the page and try again.");
     }
   }
 
@@ -261,7 +261,7 @@ export default function Stats() {
               <div className="card-title">History</div>
               {canFile && (
                 <p style={{ color: "var(--ink-soft)", fontSize: 13, marginBottom: 12, lineHeight: 1.55 }}>
-                  Some of these are students? File each one under the right person and it leaves your own numbers.
+                  Filmed a student? Pick their name in the Who column and that clip moves out of your own stats.
                 </p>
               )}
               {historyNote && (
@@ -279,7 +279,7 @@ export default function Stats() {
                         <td style={{ color: "var(--ink-soft)" }}>{new Date(r.created_at).toLocaleDateString()}</td>
                         <td style={{ textTransform: "capitalize" }}>{r.stroke}</td>
                         <td className="mono">{r.form_score}/100</td>
-                        <td className="mono">{r.serve_speed ? `~${r.serve_speed} km/h` : "—"}</td>
+                        <td className="mono">{r.serve_speed ? `~${r.serve_speed} km/h` : "-"}</td>
                         {canFile && (
                           <td>
                             <SubjectPicker id={`who-${r.id}`} label="Who is in this clip?" compact value={ME}

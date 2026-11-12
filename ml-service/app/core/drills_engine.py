@@ -275,7 +275,7 @@ DRILL_CATALOGUE = [
             "The ball traces a figure-8 pattern between you.",
             "Keep the rhythm going, then swap roles.",
         ],
-        "coaching_cue": "Early prep — you always know where it's going.",
+        "coaching_cue": "Prepare early so you always know where it's going.",
         "progression": "Raise the pace while holding the pattern together.",
     },
     {
@@ -426,7 +426,7 @@ DRILL_CATALOGUE = [
         "default_sets": 4, "default_reps": 15,
         "steps": [
             "Split-step exactly as the server's ball toss peaks.",
-            "Use a short, compact backswing — turn, don't wind up.",
+            "Use a short, compact backswing. Turn your shoulders instead of winding up.",
             "Block or drive the return deep and down the middle.",
         ],
         "coaching_cue": "Small backswing, big body turn.",
@@ -722,7 +722,7 @@ DRILL_CATALOGUE = [
         "default_sets": 2, "default_reps": 50,
         "steps": [
             "Cooperative rally with a partner, aiming for 100 balls in a row.",
-            "Any miss resets the count to zero — stay calm and rebuild.",
+            "Any miss resets the count to zero, so stay calm and start again.",
             "Keep good shape and depth even as the count climbs.",
         ],
         "coaching_cue": "One more ball, every ball.",
@@ -874,7 +874,7 @@ def generate_by_goal(goal: str, level: str = "intermediate", max_minutes: int = 
 _GOAL_RULES = [
     (("serve", "ace", "first serve", "second serve"), "serve", "Serve targets & rhythm",
      ["Shadow the full motion 5x, feeling the leg drive and reach.",
-      "Serve 10 balls to the T, then 10 wide — count makes.",
+      "Serve 10 balls to the T, then 10 wide, and count how many go in.",
       "Add a target cone in each corner and hit 3 sets of 8."], "Toss consistent, reach up at contact."),
     (("volley", "net", "doubles"), "volley", "Punch-volley control",
      ["Wall or feeder: 20 firm-wrist punch volleys, no backswing.",
@@ -890,7 +890,7 @@ _GOAL_RULES = [
       "Cross-court depth targets, 3 sets of 12."], "Load the legs, finish high."),
     (("spin", "topspin", "slice", "kick"), "technique", "Spin windows",
      ["Feed 15 balls low-to-high, exaggerating the brush.",
-      "Aim 1–1.5 m over the net into a deep zone.",
+      "Aim 1 to 1.5 m over the net and land it deep.",
       "Alternate topspin and slice for 3 sets of 12."], "Racquet-head speed low to high."),
     (("consistency", "rally", "control", "keep it in", "unforced"), "consistency", "Consistency ladder",
      ["Cross-court rally, count your longest streak.",
@@ -919,15 +919,20 @@ _GOAL_RULES = [
 ]
 
 
+def _plain(text: str) -> str:
+    """Keep generated text in the site's voice: no em or en dashes."""
+    return text.replace(" \u2014 ", ", ").replace("\u2014", ", ").replace("\u2013", "-")
+
+
 def _clean_drill(d: dict, goal: str) -> dict:
     intensity = str(d.get("intensity", "medium")).lower()
     if intensity not in INTENSITY_MINUTES:
         intensity = "medium"
     steps = d.get("steps") or []
-    steps = [str(s)[:160] for s in steps][:6]
+    steps = [_plain(str(s))[:160] for s in steps][:6]
     return {
-        "name": str(d.get("name") or "Custom drill")[:80],
-        "focus": str(d.get("focus") or "")[:200],
+        "name": _plain(str(d.get("name") or "Custom drill"))[:80],
+        "focus": _plain(str(d.get("focus") or ""))[:200],
         "category": str(d.get("category") or "custom")[:24],
         "intensity": intensity,
         "sets": max(1, min(int(d.get("sets", 3) or 3), 10)),
@@ -961,7 +966,9 @@ def _drill_prompt(goal: str) -> str:
         "You are a tennis coach. Generate ONE practice drill for this player goal, "
         "as strict JSON with keys: name (string), focus (string, one coaching sentence), "
         "category (one word), intensity ('low'|'medium'|'high'), sets (int), reps (int), "
-        "steps (array of 3-4 short instruction strings). No markdown, JSON only.\n"
+        "steps (array of 3-4 short instruction strings). Write the way a coach talks to a "
+        "player on court: plain words, short sentences, no em dashes, no hype. "
+        "No markdown, JSON only.\n"
         f"Goal: {goal}"
     )
 

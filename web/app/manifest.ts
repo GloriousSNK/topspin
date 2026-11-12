@@ -5,7 +5,7 @@ import { SITE_DESCRIPTION } from "@/lib/site";
 // search engines the name, colours and icon.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "TopSpin — Tennis Practice Lab",
+    name: "TopSpin: Tennis Practice Lab",
     short_name: "TopSpin",
     description: SITE_DESCRIPTION,
     start_url: "/",

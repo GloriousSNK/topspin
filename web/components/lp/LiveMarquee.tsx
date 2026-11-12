@@ -14,23 +14,20 @@ const FIXED = [
   "Finite-time Lyapunov",
   "33 pose landmarks",
   "Sub-second predictions",
-  "34-drill engine",
+  "50+ drill library",
 ];
-
-// Shown only if the analytics service can't be reached, so the strip never
-// reads a bare zero. Roughly where usage actually sits.
-const FALLBACK_CLIPS = 88;
 
 // The stats hook hands back a fresh object on every 15s poll; the strip only
 // depends on one number, so it is memoised on that and skips no-op renders.
 export default function LiveMarquee() {
   const stats = useTrafficStats();
-  return <Strip clips={stats?.videos_analyzed ?? FALLBACK_CLIPS} />;
+  // No made-up placeholder: the live item only appears once real numbers arrive.
+  return <Strip clips={stats?.videos_analyzed ?? null} />;
 }
 
-const Strip = memo(function Strip({ clips }: { clips: number }) {
+const Strip = memo(function Strip({ clips }: { clips: number | null }) {
   const items = [...FIXED];
-  items.splice(5, 0, `${clips.toLocaleString()} videos analysed`);
+  if (clips !== null) items.splice(5, 0, `${clips.toLocaleString()} videos analysed`);
 
   return (
     <div className="lp-strip" aria-hidden="true">

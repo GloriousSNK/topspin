@@ -91,7 +91,7 @@ export default function BatchAnalysis() {
   return <div>
     <span className="eyebrow">Session mode</span>
     <h1 className="h1">Batch analysis</h1>
-    <p className="lead">Queue up to eight clips. TopSpin runs the same on-device analysis one clip at a time, so your browser stays responsive.{coachId && subjectName ? ` Every clip will be filed in ${subjectName}'s folder.` : ""}</p>
+    <p className="lead">Add up to eight clips and TopSpin analyses them one at a time on your device, so your browser stays usable.{coachId && subjectName ? ` Every clip will be filed in ${subjectName}'s folder.` : ""}</p>
     <div className="card" style={{ marginBottom: 18 }}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
         {coachId && <SubjectPicker id="batch-subject" label="Whose clips are these?" value={subject}
