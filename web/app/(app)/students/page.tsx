@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { useStudentFolders } from "@/components/SubjectPicker";
 import { sortFolders, type FolderSort } from "@/lib/studentsLogic";
+import PageSkeleton from "../_components/PageSkeleton";
 
 export default function StudentsPage() {
   const { user, loading, role, roleLoading } = useAuth();
@@ -34,7 +35,9 @@ export default function StudentsPage() {
     router.push(`/students/${folder.id}`);
   }
 
-  if (loading || roleLoading || (coachId && state === "loading")) return <h1 className="h1">Students</h1>;
+  if (loading || roleLoading || (coachId && state === "loading")) {
+    return <PageSkeleton eyebrow="Coach desk" title={<>Your <em>students</em></>} blocks={[92, 72, 72, 72]} />;
+  }
   if (!user) return <Message text="Sign in with a coach account to keep folders for the students you film." />;
   if (role !== "coach") return <Message text="Student folders are for coach accounts. As a player, every analysis you run is filed as your own." />;
   if (state === "setup") return <Message text="Student folders need one more database step: run supabase-coach-students.sql in Supabase, then refresh." />;

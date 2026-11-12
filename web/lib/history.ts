@@ -2,7 +2,8 @@
 // Row-level security keeps each user's sessions private; shares are readable by
 // anyone with the link.
 
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabaseLazy";
+import { isSignedInAs } from "./accountGuard";
 import type { PoseAnalysis } from "./pose";
 import type { Workout, GeneratedDrill } from "./types";
 
@@ -16,14 +17,12 @@ export interface SessionRow {
   joint_feedback?: PoseAnalysis["jointFeedback"];
 }
 
-async function userMatches(expectedUserId: string): Promise<boolean> {
-  if (!supabase || !expectedUserId) return false;
-  const { data, error } = await supabase.auth.getUser();
-  return !error && data.user?.id === expectedUserId;
-}
+// Local (no network) "still the same account?" check — see lib/accountGuard.ts.
+const userMatches = isSignedInAs;
 
 // Returns the new session id (so a coach can re-file it), or null on failure.
 export async function saveSession(a: PoseAnalysis, expectedUserId: string): Promise<string | null> {
+  const supabase = await getSupabase();
   if (!supabase) return null;
   if (!(await userMatches(expectedUserId))) return null;
   const { data, error } = await supabase.from("sessions").insert({
@@ -38,6 +37,7 @@ export async function saveSession(a: PoseAnalysis, expectedUserId: string): Prom
 }
 
 export async function deleteSessions(expectedUserId: string): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase || !(await userMatches(expectedUserId))) return false;
   const { error } = await supabase.from("sessions").delete().eq("user_id", expectedUserId);
   return !error && await userMatches(expectedUserId);
@@ -49,6 +49,7 @@ export async function deleteSessions(expectedUserId: string): Promise<boolean> {
 // leaking other accounts' analyses into your private Stats/account views. RLS is
 // the backstop for *authorization*; the query still has to scope to the owner.
 export async function getSessions(expectedUserId: string, limit = 60): Promise<SessionRow[]> {
+  const supabase = await getSupabase();
   if (!supabase) return [];
   if (!(await userMatches(expectedUserId))) return [];
   const { data } = await supabase
@@ -59,6 +60,21 @@ export async function getSessions(expectedUserId: string, limit = 60): Promise<S
     .limit(limit);
   if (!(await userMatches(expectedUserId))) return [];
   return (data as SessionRow[]) ?? [];
+}
+
+// Just the number of the owner's saved analyses (Account page). A HEAD count
+// instead of downloading up to 200 full rows (flaws + joint feedback) to count them.
+// Same owner filter and account re-check as getSessions.
+export async function countSessions(expectedUserId: string): Promise<number | null> {
+  const supabase = await getSupabase();
+  if (!supabase) return null;
+  if (!(await userMatches(expectedUserId))) return null;
+  const { count, error } = await supabase
+    .from("sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", expectedUserId);
+  if (error || !(await userMatches(expectedUserId))) return null;
+  return count ?? 0;
 }
 
 export interface SharePayload {
@@ -80,6 +96,7 @@ function slug(): string {
 
 // Returns the share id (used to build /s/<id>), or null on failure.
 export async function createShare(payload: SharePayload, expectedUserId: string): Promise<string | null> {
+  const supabase = await getSupabase();
   if (!supabase) return null;
   if (!(await userMatches(expectedUserId))) return null;
   const id = slug();
@@ -88,6 +105,7 @@ export async function createShare(payload: SharePayload, expectedUserId: string)
 }
 
 export async function getShare(id: string): Promise<SharePayload | null> {
+  const supabase = await getSupabase();
   if (!supabase) return null;
   const { data, error } = await supabase.rpc("get_share_by_id", { p_id: id });
   return error ? null : (data as SharePayload) ?? null;
@@ -101,6 +119,7 @@ export interface CustomDrillRow {
 }
 
 export async function saveCustomDrill(drill: GeneratedDrill, expectedUserId: string): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase) return false;
   if (!(await userMatches(expectedUserId))) return false;
   const { error } = await supabase.from("custom_drills").insert({ user_id: expectedUserId, drill });
@@ -108,6 +127,7 @@ export async function saveCustomDrill(drill: GeneratedDrill, expectedUserId: str
 }
 
 export async function saveWorkout(workout: Workout, expectedUserId: string): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase) return false;
   if (!(await userMatches(expectedUserId))) return false;
   const { error } = await supabase.from("custom_drills").insert({
@@ -117,6 +137,7 @@ export async function saveWorkout(workout: Workout, expectedUserId: string): Pro
 }
 
 export async function getCustomDrills(expectedUserId: string, limit = 30): Promise<CustomDrillRow[]> {
+  const supabase = await getSupabase();
   if (!supabase) return [];
   // custom_drills has no public read policy today, so RLS already scopes this to
   // the owner — but we filter by user_id explicitly anyway, so a future public
@@ -138,6 +159,7 @@ export async function getCustomDrills(expectedUserId: string, limit = 30): Promi
 // that silently matches zero rows would look like a success and the item would
 // reappear on the next load.
 export async function deleteCustomDrill(id: string, expectedUserId: string): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase) return false;
   if (!(await userMatches(expectedUserId))) return false;
   const { data, error } = await supabase
@@ -147,6 +169,7 @@ export async function deleteCustomDrill(id: string, expectedUserId: string): Pro
 
 // Rename a saved workout/drill by patching the title/name inside the jsonb.
 export async function renameCustomDrill(id: string, title: string, expectedUserId: string): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase) return false;
   if (!(await userMatches(expectedUserId))) return false;
   const { data: existing } = await supabase
@@ -169,6 +192,7 @@ export interface Profile {
 }
 
 export async function getMyProfile(expectedUserId: string): Promise<Profile | null> {
+  const supabase = await getSupabase();
   if (!supabase) return null;
   if (!(await userMatches(expectedUserId))) return null;
   const { data: p, error } = await supabase.from("profiles").select("*").eq("user_id", expectedUserId).maybeSingle();
@@ -180,6 +204,7 @@ export async function getMyProfile(expectedUserId: string): Promise<Profile | nu
 export async function setMyProfile(
   expectedUserId: string, isPublic: boolean, displayName: string, utr = "", usta = "",
 ): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase) return false;
   if (!(await userMatches(expectedUserId))) return false;
   const { error } = await supabase.from("profiles").upsert({
@@ -194,6 +219,7 @@ export async function setMyProfile(
 
 // Public read of another player's profile + sessions (RLS gates by is_public).
 export async function getPublicProfile(userId: string): Promise<{ profile: Profile | null; sessions: SessionRow[] }> {
+  const supabase = await getSupabase();
   if (!supabase) return { profile: null, sessions: [] };
   const { data, error } = await supabase.rpc("get_public_player_profile", { p_user_id: userId });
   if (error || !data || typeof data !== "object") return { profile: null, sessions: [] };

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Reveal, Counter } from "./Motion";
 import { useTrafficStats } from "@/lib/useTrafficStats";
 
@@ -9,10 +10,14 @@ import { useTrafficStats } from "@/lib/useTrafficStats";
 
 const FALLBACK_CLIPS = 88;
 
+// The stats hook hands back a fresh object on every 15s poll; the band only
+// depends on one number, so it is memoised on that and skips no-op renders.
 export default function LiveNumbers() {
   const stats = useTrafficStats();
-  const clips = stats?.videos_analyzed ?? FALLBACK_CLIPS;
+  return <Band clips={stats?.videos_analyzed ?? FALLBACK_CLIPS} />;
+}
 
+const Band = memo(function Band({ clips }: { clips: number }) {
   return (
     <section aria-label="By the numbers">
       <div className="container">
@@ -37,4 +42,4 @@ export default function LiveNumbers() {
       </div>
     </section>
   );
-}
+});

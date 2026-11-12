@@ -12,6 +12,7 @@ import { getPracticeCompletions, type PracticeCompletion } from "@/lib/coach";
 import { moveSessionToStudent } from "@/lib/students";
 import { ME, subjectStudentId, type Subject } from "@/lib/studentsLogic";
 import SubjectPicker, { useStudentFolders } from "@/components/SubjectPicker";
+import PageSkeleton from "../_components/PageSkeleton";
 
 export default function Stats() {
   const { user, loading, role } = useAuth();
@@ -27,23 +28,26 @@ export default function Stats() {
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const activeUserId = useRef<string | null>(user?.id ?? null);
+  const userId = user?.id ?? null;
+  const activeUserId = useRef<string | null>(userId);
 
+  // Keyed on the account id, not the User object, so a token refresh for the
+  // same account doesn't blank the page and refetch everything.
   useEffect(() => {
-    activeUserId.current = user?.id ?? null;
+    activeUserId.current = userId;
     let alive = true;
     // Clear the prior account's rows on any user change (switch or sign-out) so
     // they can't flash under the new session before the refetch resolves. This
     // is a deliberate one-time reset keyed on identity, not a render-loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRows([]); setSaved([]); setPractice([]); setLoad(true);
-    if (!user) { setRows(getLocalSessions()); setSaved(getLocalDrills()); setPractice(getLocalPracticeCompletions()); setLoad(false); return; }
-    Promise.all([getSessions(user.id), getCustomDrills(user.id, 50), getPracticeCompletions(user.id)]).then(([r, s, p]) => {
+    if (!userId) { setRows(getLocalSessions()); setSaved(getLocalDrills()); setPractice(getLocalPracticeCompletions()); setLoad(false); return; }
+    Promise.all([getSessions(userId), getCustomDrills(userId, 50), getPracticeCompletions(userId)]).then(([r, s, p]) => {
       if (!alive) return;
       setRows(r); setSaved(s); setPractice(p); setLoad(false);
     });
     return () => { alive = false; };
-  }, [user]);
+  }, [userId]);
 
   const topFlaws = useMemo(() => {
     const count = new Map<string, { id: string; label: string; coaching_cue: string; n: number }>();
@@ -54,6 +58,18 @@ export default function Stats() {
       }
     return [...count.values()].sort((a, b) => b.n - a.n).slice(0, 4);
   }, [rows]);
+
+  // Derived once per data change, not on every render (moving/notes/busy toggles).
+  const summary = useMemo(() => {
+    const scored = rows.filter((r) => typeof r.form_score === "number");
+    return {
+      avg: scored.length ? Math.round(scored.reduce((s, r) => s + r.form_score, 0) / scored.length) : 0,
+      best: scored.reduce((m, r) => Math.max(m, r.form_score), 0),
+      chrono: [...scored].reverse(),
+      recent: scored.length ? scored[0].form_score : 0, // most recent form
+      streak: practiceDayStreak([...rows.map((r) => r.created_at), ...practice.map((p) => p.completed_at)]),
+    };
+  }, [rows, practice]);
 
   async function removeSaved(id: string) {
     if (!user) { deleteLocalDrill(id); setSaved((s) => s.filter((r) => r.id !== id)); return; }
@@ -113,14 +129,9 @@ export default function Stats() {
     } finally { setBusy(false); }
   }
 
-  if (loading || load) return <h1 className="h1">Stats</h1>;
+  if (loading || load) return <PageSkeleton eyebrow="Your numbers" title="Stats" blocks={[96, 200, 260]} />;
 
-  const scored = rows.filter((r) => typeof r.form_score === "number");
-  const avg = scored.length ? Math.round(scored.reduce((s, r) => s + r.form_score, 0) / scored.length) : 0;
-  const best = scored.reduce((m, r) => Math.max(m, r.form_score), 0);
-  const chrono = [...scored].reverse();
-  const recent = scored.length ? scored[0].form_score : 0; // most recent form
-  const streak = practiceDayStreak([...rows.map((r) => r.created_at), ...practice.map((p) => p.completed_at)]);
+  const { avg, best, chrono, recent, streak } = summary;
   const nothing = rows.length === 0 && saved.length === 0 && practice.length === 0;
 
   return (

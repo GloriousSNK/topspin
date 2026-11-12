@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -28,7 +28,9 @@ function active(path: string, href: string): boolean {
   return path === route || path.startsWith(`${route}/`);
 }
 
-export default function MobileMenu({ groups, account, identity, loading }: MobileMenuProps) {
+// Memoised: TopNav passes stable props, so the menu only re-renders when the
+// route, auth identity or its own open state actually changes.
+export default memo(function MobileMenu({ groups, account, identity, loading }: MobileMenuProps) {
   const [open, setOpen] = useState(false);
   const path = usePathname();
   const button = useRef<HTMLButtonElement>(null);
@@ -102,4 +104,4 @@ export default function MobileMenu({ groups, account, identity, loading }: Mobil
       )}
     </div>
   );
-}
+});

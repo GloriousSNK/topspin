@@ -49,6 +49,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Drop the "X-Powered-By: Next.js" header from every response (bytes, and
+  // no reason to advertise the stack).
+  poweredByHeader: false,
+  // No Cache-Control here on purpose: Vercel already serves /_next/static as
+  // immutable, and the headers below must not override that.
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

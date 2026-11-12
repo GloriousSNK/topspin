@@ -13,8 +13,11 @@ import { recallSubject, refile, rememberSubject, saveStudentAnalysis, type Filed
 import { ME, studentSubject, subjectStudentId, type Subject } from "@/lib/studentsLogic";
 import SubjectPicker, { useStudentFolders } from "@/components/SubjectPicker";
 import ContactSkeleton from "@/components/ContactSkeleton";
+import { usePoseWarmup } from "@/lib/usePoseWarmup";
 
 const STROKES = ["auto", "forehand", "backhand", "serve", "volley", "slice"];
+const BUILDING = "Building session…";
+const SHARING = "Creating summary…";
 
 export default function Analyze() {
   const [stroke, setStroke] = useState("auto");
@@ -37,6 +40,8 @@ export default function Analyze() {
   const [chosenSubject, setChosenSubject] = useState<Subject>(ME);
   const [filed, setFiled] = useState<Filed | null>(null);
   const [refiling, setRefiling] = useState(false);
+  // Start loading the pose model on idle, or sooner when the user reaches for the dropzone.
+  const warmModel = usePoseWarmup();
 
   // Only file under a student once we know that folder exists; otherwise the
   // analysis goes to the coach's own history as it always did.
@@ -113,8 +118,11 @@ export default function Analyze() {
           // A student's clip: file it in their folder and keep it out of the coach's own history.
           savedId = await saveStudentAnalysis(ownerId, studentId, res).catch(() => null);
         } else {
-          savedId = await saveSession(res, ownerId).catch(() => null);
-          await syncPlayerSummary(ownerId, res.stroke, res.formScore).catch(() => false);
+          // Independent writes (the summary RPC takes the values directly), so run them together.
+          [savedId] = await Promise.all([
+            saveSession(res, ownerId).catch(() => null),
+            syncPlayerSummary(ownerId, res.stroke, res.formScore).catch(() => false),
+          ]);
         }
         if (activeUserId.current === ownerId) {
           setSaveState(savedId ? "saved" : "failed");
@@ -131,7 +139,7 @@ export default function Analyze() {
   async function makeWorkout() {
     if (!result) return;
     try {
-      setBusy("Building session…");
+      setBusy(BUILDING);
       setWorkout(await api.workoutFromFlaws(result.flaws, "intermediate", 45));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed");
@@ -144,7 +152,7 @@ export default function Analyze() {
     if (!result || !user) return;
     const ownerId = user.id;
     try {
-      setBusy("Creating summary…");
+      setBusy(SHARING);
       const id = await createShare({
         stroke: result.stroke, formScore: result.formScore, serveSpeedKmh: result.serveSpeedKmh,
         flaws: result.flaws, jointFeedback: result.jointFeedback, workout, createdAt: new Date().toISOString(),
@@ -209,7 +217,7 @@ export default function Analyze() {
           )}
           <div>
             <label className="label" htmlFor="stroke">Stroke</label>
-            <select id="stroke" value={stroke} onChange={(e) => setStroke(e.target.value)} className="select">
+            <select id="stroke" value={stroke} onChange={(e) => setStroke(e.target.value)} onFocus={warmModel} className="select">
               {STROKES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
@@ -221,6 +229,8 @@ export default function Analyze() {
         <div
           className={`dropzone ${drag ? "drag" : ""}`}
           onClick={() => inputRef.current?.click()}
+          onPointerEnter={warmModel}
+          onDragEnter={warmModel}
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
           onDrop={(e) => {
@@ -251,7 +261,7 @@ export default function Analyze() {
             </div>
           ) : saveState === "saved" ? (
             <div className={isCoach ? "filed-banner" : undefined} role="status" style={isCoach ? undefined : { marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
-              <span>✓ Saved to your history.</span> <a href="/stats" style={{ color: "var(--court)", fontWeight: 600 }}>See your stats →</a>
+              <span>✓ Saved to your history.</span> <Link href="/stats" style={{ color: "var(--court)", fontWeight: 600 }}>See your stats →</Link>
               {isCoach && <span className="filed-moving">{refiling ? "Moving…" : "Student's clip? Pick them above to move it."}</span>}
             </div>
           ) : saveState === "saving" ? (
@@ -266,7 +276,7 @@ export default function Analyze() {
             </div>
           ) : enabled ? (
             <div style={{ marginBottom: 14, fontSize: 14, color: "var(--ink-soft)" }}>
-              <a href="/account" style={{ color: "var(--court)", fontWeight: 600 }}>Sign in</a> to save this and track your form over time.
+              <Link href="/account" style={{ color: "var(--court)", fontWeight: 600 }}>Sign in</Link> to save this and track your form over time.
             </div>
           ) : null}
 
@@ -320,7 +330,7 @@ export default function Analyze() {
 
               {result.flaws.length > 0 && (
                 <button className="btn" style={{ marginTop: 10 }} onClick={makeWorkout} disabled={!!busy}>
-                  Build a session to fix these →
+                  {busy === BUILDING ? "Building session…" : "Build a session to fix these →"}
                 </button>
               )}
             </div>
@@ -365,7 +375,7 @@ export default function Analyze() {
               <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>Accounts aren&apos;t set up on this deployment yet.</p>
             ) : !user ? (
               <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>
-                <a href="/account" style={{ color: "var(--court)", fontWeight: 600 }}>Sign in</a> to create a one-page summary link you can send to a coach.
+                <Link href="/account" style={{ color: "var(--court)", fontWeight: 600 }}>Sign in</Link> to create a one-page summary link you can send to a coach.
               </p>
             ) : shareUrl ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -376,7 +386,7 @@ export default function Analyze() {
                 <a className="btn" href={shareUrl} target="_blank" rel="noreferrer">Open</a>
               </div>
             ) : (
-              <button className="btn" onClick={makeShare} disabled={!!busy}>Create a shareable summary →</button>
+              <button className="btn" onClick={makeShare} disabled={!!busy}>{busy === SHARING ? "Creating summary…" : "Create a shareable summary →"}</button>
             )}
             {user && !isCoach && (
               <div style={{ borderTop: "1px solid var(--line-soft)", marginTop: 16, paddingTop: 16 }}>

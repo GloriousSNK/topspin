@@ -76,6 +76,11 @@ export default function CourtMorph() {
 
     function apply(p: number) {
       const e = ease(p);
+      // chalk → grass green as it becomes a body (same colour for every line)
+      const warm = Math.max(0, (e - 0.55) / 0.45);
+      const stroke = warm > 0
+        ? `rgba(${29 - warm * 6}, ${34 + warm * 69}, ${27 + warm * 31}, ${0.42 + warm * 0.48})`
+        : "rgba(29,34,27,0.42)";
       for (let i = 0; i < court.length; i++) {
         const el = lineRefs.current[i];
         if (!el) continue;
@@ -84,21 +89,20 @@ export default function CourtMorph() {
         el.setAttribute("y1", String(a[1] + (b[1] - a[1]) * e));
         el.setAttribute("x2", String(a[2] + (b[2] - a[2]) * e));
         el.setAttribute("y2", String(a[3] + (b[3] - a[3]) * e));
-        // chalk → grass green as it becomes a body
-        const warm = Math.max(0, (e - 0.55) / 0.45);
-        el.setAttribute("stroke", warm > 0
-          ? `rgba(${29 - warm * 6}, ${34 + warm * 69}, ${27 + warm * 31}, ${0.42 + warm * 0.48})`
-          : "rgba(29,34,27,0.42)");
+        el.setAttribute("stroke", stroke);
       }
       const dotIn = Math.max(0, (e - 0.72) / 0.28);
+      const op = String(dotIn), r = String(3.2 * dotIn + 0.001);
       for (const d of dotRefs.current) {
         if (!d) continue;
-        d.setAttribute("opacity", String(dotIn));
-        d.setAttribute("r", String(3.2 * dotIn + 0.001));
+        d.setAttribute("opacity", op);
+        d.setAttribute("r", r);
       }
-      if (labelRef.current) labelRef.current.setAttribute("opacity", String(dotIn));
+      if (labelRef.current) labelRef.current.setAttribute("opacity", op);
     }
 
+    // read phase: measure only; the SVG writes are handed back to the ticker so
+    // they run after every subscriber has done its reads (no forced re-layout)
     function tick() {
       const node = wrapRef.current;
       if (!node) return;
@@ -108,10 +112,9 @@ export default function CourtMorph() {
       const p = Math.min(1, Math.max(0, (vh * 0.88 - rect.top) / (vh * 0.58)));
       if (Math.abs(p - pRef.current) < 0.0015) return;
       pRef.current = p;
-      apply(p);
+      return () => apply(p);
     }
 
-    apply(0);
     return onScrollFrame(tick);
   }, []);
 

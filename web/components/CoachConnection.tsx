@@ -12,7 +12,7 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
   const { refreshRole } = useAuth();
   const [context, setContext] = useState<CoachContext | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<null | "role" | "squad" | "join" | "leave">(null);
   const [message, setMessage] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [squadName, setSquadName] = useState("My squad");
@@ -28,7 +28,7 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
   }, [userId]);
 
   async function setRole(role: AccountRole) {
-    setBusy(true); setMessage(null);
+    setBusy("role"); setMessage(null);
     const value = await chooseRole(userId, role);
     if (owner.current !== userId) return;
     if (!value) setMessage("Couldn't set up that account type. Try again.");
@@ -36,11 +36,11 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
       setContext({ role: value, squads: [], membership: null });
       refreshRole();
     }
-    setBusy(false);
+    setBusy(null);
   }
 
   async function makeSquad() {
-    setBusy(true); setMessage(null);
+    setBusy("squad"); setMessage(null);
     const result = await createSquad(userId, squadName);
     if (owner.current !== userId) return;
     if (!result.squad) {
@@ -54,26 +54,26 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
     } else {
       setContext((c) => c ? { ...c, squads: [...c.squads, result.squad!] } : c);
     }
-    setBusy(false);
+    setBusy(null);
   }
 
   async function join() {
-    setBusy(true); setMessage(null);
+    setBusy("join"); setMessage(null);
     const membership = await joinSquad(userId, code);
     if (owner.current !== userId) return;
     if (!membership) setMessage("That code didn't work. Check it and try again.");
     else { setContext((c) => c ? { ...c, membership } : c); setCode(""); }
-    setBusy(false);
+    setBusy(null);
   }
 
   async function leave() {
     if (!confirm("Leave this squad? Coach-visible summaries and shared analyses will be deleted.")) return;
-    setBusy(true); setMessage(null);
+    setBusy("leave"); setMessage(null);
     const ok = await leaveSquad(userId);
     if (owner.current !== userId) return;
     if (!ok) setMessage("Couldn't leave the squad. Nothing was changed.");
     else setContext((c) => c ? { ...c, membership: null } : c);
-    setBusy(false);
+    setBusy(null);
   }
 
   return (
@@ -89,14 +89,14 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
       {!consentReady ? (
         <div className="subcard">Guardian approval is needed before coach sync can start.</div>
       ) : loading ? (
-        <div role="status" style={{ color: "var(--ink-soft)" }}>Loading...</div>
+        <div role="status" className="subcard skeleton" style={{ color: "var(--ink-soft)", minHeight: 72 }}>Loading…</div>
       ) : !context?.role ? (
         <div className="grid grid-2">
-          <button className="subcard lift" style={{ textAlign: "left", cursor: "pointer" }} disabled={busy} onClick={() => setRole("player")}>
+          <button className="subcard lift" style={{ textAlign: "left", cursor: "pointer" }} disabled={!!busy} onClick={() => setRole("player")}>
             <strong style={{ display: "block", marginBottom: 5 }}>I&apos;m a player</strong>
             <span style={{ color: "var(--ink-soft)", fontSize: 13 }}>Join one coach using their squad code.</span>
           </button>
-          <button className="subcard lift" style={{ textAlign: "left", cursor: "pointer" }} disabled={busy} onClick={() => setRole("coach")}>
+          <button className="subcard lift" style={{ textAlign: "left", cursor: "pointer" }} disabled={!!busy} onClick={() => setRole("coach")}>
             <strong style={{ display: "block", marginBottom: 5 }}>I&apos;m a coach</strong>
             <span style={{ color: "var(--ink-soft)", fontSize: 13 }}>Create squads and follow player summaries.</span>
           </button>
@@ -108,7 +108,7 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
               <strong>{context.membership.squad_name}</strong>
               <div style={{ color: "var(--ink-soft)", fontSize: 13 }}>Connected to {context.membership.coach_name}</div>
             </div>
-            <button className="btn btn-ghost" style={{ color: "var(--danger)" }} disabled={busy} onClick={leave}>Leave squad</button>
+            <button className="btn btn-ghost" style={{ color: "var(--danger)" }} disabled={!!busy} onClick={leave}>{busy === "leave" ? "Leaving…" : "Leave squad"}</button>
           </div>
         ) : (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -117,7 +117,7 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
               <input id="squad-code" className="select" value={code} maxLength={6} autoCapitalize="characters" spellCheck={false}
                 onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} placeholder="A1B2C3" style={{ width: "100%" }} />
             </div>
-            <button className="btn" disabled={busy || code.length !== 6} onClick={join}>Join squad</button>
+            <button className="btn" disabled={!!busy || code.length !== 6} onClick={join}>{busy === "join" ? "Joining…" : "Join squad"}</button>
           </div>
         )
       ) : (
@@ -127,7 +127,7 @@ export default function CoachConnection({ userId, consentReady }: { userId: stri
               <label className="label" htmlFor="squad-name">New squad name</label>
               <input id="squad-name" className="select" value={squadName} maxLength={60} onChange={(e) => setSquadName(e.target.value)} style={{ width: "100%" }} />
             </div>
-            <button className="btn" disabled={busy || !squadName.trim()} onClick={makeSquad}>Create squad</button>
+            <button className="btn" disabled={!!busy || !squadName.trim()} onClick={makeSquad}>{busy === "squad" ? "Creating…" : "Create squad"}</button>
             <Link className="btn btn-ghost" href="/coach">Open coach dashboard</Link>
           </div>
           <div className="grid grid-3">

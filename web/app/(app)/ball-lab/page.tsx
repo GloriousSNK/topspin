@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { BallPrediction, LaunchInput } from "@/lib/types";
 import { BackendWakeupPanel } from "@/components/BackendStatus";
@@ -40,25 +40,38 @@ export default function BallLab() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const reqId = useRef(0);
+  const inFlight = useRef<AbortController | null>(null);
+  // The controls the on-screen result was computed for. While the sliders
+  // differ from it the readout says "Updating…" immediately (before the
+  // debounce fires), and the last result stays visible until the new one lands.
+  const [shownFor, setShownFor] = useState<Controls | null>(null);
 
   const run = useCallback(async (ctrl: Controls) => {
     const id = ++reqId.current;
+    // Cancel the superseded request so the server isn't computing stale shots.
+    inFlight.current?.abort();
+    const controller = new AbortController();
+    inFlight.current = controller;
     setLoading(true);
     setErr(null);
     try {
-      const p = await api.predictBall(toLaunch(ctrl), 120);
-      if (id === reqId.current) setPred(p); // ignore out-of-order stale responses
+      const p = await api.predictBall(toLaunch(ctrl), 120, controller.signal);
+      if (id === reqId.current) { setPred(p); setShownFor(ctrl); } // ignore out-of-order stale responses
     } catch (e) {
+      if (controller.signal.aborted) return;
       if (id === reqId.current) setErr(e instanceof Error ? e.message : "Request failed");
     } finally {
       if (id === reqId.current) setLoading(false);
     }
   }, []);
 
-  // Live: recompute a beat after the slider settles (and on mount). The longer
-  // debounce keeps a drag from firing a burst of heavy physics requests.
+  useEffect(() => () => inFlight.current?.abort(), []);
+
+  // Live: recompute shortly after the slider pauses (and on mount). Continuous
+  // drags fire input events every frame, so this still sends one request per
+  // pause, and any request it supersedes is aborted above.
   useEffect(() => {
-    const t = setTimeout(() => run(c), 400);
+    const t = setTimeout(() => run(c), 150);
     return () => clearTimeout(t);
   }, [c, run]);
 
@@ -98,7 +111,7 @@ export default function BallLab() {
           <Slider label="Spin (+top / −back)" val={c.topspin} unit="rpm" min={-3000} max={5000} step={100} onChange={set("topspin")} />
           <Slider label="Contact height" val={c.height} unit="m" min={0.4} max={1.6} step={0.05} onChange={set("height")} />
           <div style={{ fontSize: 12, color: "var(--ink-soft)", margin: "8px 0" }}>
-            {loading ? "● Updating…" : "Updates live as you drag."}
+            {loading || (pred && shownFor !== c) ? "● Updating…" : "Updates live as you drag."}
           </div>
           <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }}
             onClick={() => setC(DEFAULTS)}>
@@ -130,7 +143,7 @@ export default function BallLab() {
                   </span>
                 </div>
                 <div style={{ padding: 18 }}>
-                  <SideView pred={pred} />
+                  <SideViewMemo pred={pred} />
                 </div>
               </div>
 
@@ -141,7 +154,7 @@ export default function BallLab() {
                     {pred.ensemble && <span className="val">{(pred.ensemble.in_probability * 100).toFixed(0)}% IN</span>}
                   </div>
                   <div style={{ padding: 18 }}>
-                    <TopDown pred={pred} />
+                    <TopDownMemo pred={pred} />
                   </div>
                   {pred.ensemble && (
                     <div className="lp-panel-foot">
@@ -165,7 +178,7 @@ export default function BallLab() {
                           <Stat label="Predict. horizon"
                             value={pred.chaos.predictability_horizon_s > 0 ? `${pred.chaos.predictability_horizon_s}s` : "∞"} />
                         </div>
-                        <Divergence curve={pred.chaos.divergence_curve} />
+                        <DivergenceMemo curve={pred.chaos.divergence_curve} />
                         <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>
                           {pred.chaos.interpretation}
                         </p>
@@ -296,3 +309,9 @@ function Divergence({ curve }: { curve: { t: number; separation: number }[] }) {
     </svg>
   );
 }
+
+// The charts only change when a new prediction lands; memoised so slider input
+// (which re-renders the page every frame during a drag) skips re-drawing them.
+const SideViewMemo = memo(SideView);
+const TopDownMemo = memo(TopDown);
+const DivergenceMemo = memo(Divergence);

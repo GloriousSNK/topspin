@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import CoachConnection from "@/components/CoachConnection";
-import { deleteSessions, getSessions, getMyProfile, setMyProfile } from "@/lib/history";
+import { countSessions, deleteSessions, getMyProfile, setMyProfile } from "@/lib/history";
+import PageSkeleton from "../_components/PageSkeleton";
 import {
   getMyConsent, submitAgeGate, resendGuardianRequest, needsGuardianConsent,
   type ConsentRow,
@@ -36,7 +37,11 @@ export default function Account() {
   const [consentLoaded, setConsentLoaded] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [accountLoadError, setAccountLoadError] = useState(false);
-  const activeUserId = useRef<string | null>(user?.id ?? null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const userId = user?.id ?? null;
+  const activeUserId = useRef<string | null>(userId);
 
   useEffect(() => {
     // Reset every per-account field first so nothing from a previously
@@ -44,23 +49,26 @@ export default function Account() {
     // account that has no public profile would keep the prior user's display
     // name / UTR / public-toggle in the form — and "Save details" would write
     // them onto the new account. Deliberate one-time reset keyed on identity.
-    activeUserId.current = user?.id ?? null;
+    // Keyed on the account id (not the User object), so a token refresh for the
+    // same account doesn't reset the form or refetch.
+    activeUserId.current = userId;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset account-scoped UI on identity change
     setCount(null); setConsent(null); setConsentLoaded(false); setProfileLoaded(false); setAccountLoadError(false);
     setIsPublic(false); setDisplayName(""); setUtr(""); setUsta(""); setSavedProfile(false);
-    if (!user) return;
+    if (!userId) return;
     let alive = true;
-    getSessions(user.id, 200).then((r) => { if (alive) setCount(r.length); });
-    getMyProfile(user.id).then((p) => {
+    // All three reads start together; none depends on another.
+    countSessions(userId).then((n) => { if (alive) setCount(n ?? 0); });
+    getMyProfile(userId).then((p) => {
       if (!alive || !p) return;
       setIsPublic(p.is_public); setDisplayName(p.display_name ?? ""); setUtr(p.utr ?? ""); setUsta(p.usta ?? "");
     }).catch(() => { if (alive) setAccountLoadError(true); })
       .finally(() => { if (alive) setProfileLoaded(true); });
-    getMyConsent(user.id).then((c) => { if (alive) setConsent(c); })
+    getMyConsent(userId).then((c) => { if (alive) setConsent(c); })
       .catch(() => { if (alive) setAccountLoadError(true); })
       .finally(() => { if (alive) setConsentLoaded(true); });
     return () => { alive = false; };
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     const authError = new URLSearchParams(window.location.search).get("authError");
@@ -69,10 +77,12 @@ export default function Account() {
   }, []);
 
   async function saveProfile(pub: boolean) {
-    if (!user) return;
+    if (!user || savingProfile) return;
     const ownerId = user.id;
-    const ok = await setMyProfile(ownerId, pub, displayName, utr, usta);
+    setSavingProfile(true); setMsg(null);
+    const ok = await setMyProfile(ownerId, pub, displayName, utr, usta).catch(() => false);
     if (activeUserId.current !== ownerId) return;
+    setSavingProfile(false);
     if (!ok) { setMsg("Couldn't save your profile. Try again."); return; }
     setIsPublic(pub);
     setSavedProfile(true);
@@ -111,8 +121,10 @@ export default function Account() {
     if (!user) return;
     if (!confirm("Delete all your saved analyses? This can't be undone.")) return;
     const ownerId = user.id;
-    const ok = await deleteSessions(ownerId);
+    setClearing(true); setMsg(null);
+    const ok = await deleteSessions(ownerId).catch(() => false);
     if (activeUserId.current !== ownerId) return;
+    setClearing(false);
     if (ok) setCount(0);
     else setMsg("Couldn't delete your analyses. Nothing was changed.");
   }
@@ -143,7 +155,7 @@ export default function Account() {
       body="Accounts aren't connected on this copy of the app. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to web/.env.local (from your Supabase project's Settings → API), restart the dev server, and sign-in will light up."
     />
   );
-  if (loading) return <h1 className="h1">Account</h1>;
+  if (loading) return <PageSkeleton eyebrow="Your locker" title="Your account" blocks={[88, 150, 220]} />;
 
   // ---- signed in ----
   if (user) {
@@ -151,7 +163,10 @@ export default function Account() {
 
     // Wait for the consent row before deciding what to show, so a user who
     // still needs the age gate doesn't see the account flash first.
-    if (!consentLoaded || !profileLoaded) return <h1 className="h1">Account</h1>;
+    if (!consentLoaded || !profileLoaded) {
+      return <PageSkeleton eyebrow="Your locker" title="Your account"
+        lead="Everything you analyse is saved here so you can track it over time." blocks={[88, 150, 220]} />;
+    }
     if (accountLoadError) return <Bare title="Account" body="We couldn't load your account details. Refresh the page and try again." />;
 
     // One-time age gate: a fresh account tells us its birth year before the
@@ -184,7 +199,10 @@ export default function Account() {
               {count === null ? "…" : `${count} ${count === 1 ? "analysis" : "analyses"} saved`}
             </div>
           </div>
-          <button className="btn btn-ghost" onClick={async () => { await signOut(); setPw(""); setEmail(""); }}>Sign out</button>
+          <button className="btn btn-ghost" disabled={signingOut}
+            onClick={async () => { setSigningOut(true); await signOut(); setSigningOut(false); setPw(""); setEmail(""); }}>
+            {signingOut ? "Signing out…" : "Sign out"}
+          </button>
         </div>
 
         <div className="grid grid-3" style={{ marginBottom: 18 }}>
@@ -217,10 +235,10 @@ export default function Account() {
               <input id="usta" className="select" style={{ width: 90, textTransform: "none" }} value={usta}
                 onChange={(e) => setUsta(e.target.value)} maxLength={5} placeholder="e.g. 4.0" />
             </div>
-            <button className="btn btn-ghost" onClick={() => saveProfile(isPublic)}>Save details</button>
+            <button className="btn btn-ghost" onClick={() => saveProfile(isPublic)} disabled={savingProfile}>{savingProfile ? "Saving…" : "Save details"}</button>
             {savedProfile && <span style={{ color: "var(--good)", fontSize: 13 }}>✓ Saved</span>}
           </div>
-          <button className={`btn ${isPublic ? "btn-ghost" : ""}`} onClick={() => saveProfile(!isPublic)} style={{ marginBottom: 12 }}>
+          <button className={`btn ${isPublic ? "btn-ghost" : ""}`} onClick={() => saveProfile(!isPublic)} disabled={savingProfile} style={{ marginBottom: 12 }}>
             {isPublic ? "Make profile private" : "Make profile public"}
           </button>
           {isPublic && (
@@ -242,12 +260,12 @@ export default function Account() {
             deleting your account removes all of it. See the{" "}
             <Link href="/privacy" style={{ color: "var(--court)", fontWeight: 600 }}>privacy page</Link>.
           </p>
-          <button className="btn btn-danger" onClick={clearHistory}>
-            Delete my saved analyses
+          <button className="btn btn-danger" onClick={clearHistory} disabled={clearing || busy}>
+            {clearing ? "Deleting…" : "Delete my saved analyses"}
           </button>
           <button className="btn btn-danger" style={{ marginLeft: 10 }}
-            onClick={deleteAccount} disabled={busy}>
-            Delete my account
+            onClick={deleteAccount} disabled={busy || clearing}>
+            {busy ? "Deleting account…" : "Delete my account"}
           </button>
           {msg && <div role="alert" style={{ color: "var(--danger)", fontSize: 13, marginTop: 10 }}>{msg}</div>}
         </div>
@@ -290,7 +308,7 @@ export default function Account() {
             </button>
           )}
           <button className="btn" disabled={busy} style={{ justifyContent: "center" }}>
-            {busy ? "…" : mode === "in" ? "Sign in" : "Create account"}
+            {busy ? (mode === "in" ? "Signing in…" : "Creating account…") : mode === "in" ? "Sign in" : "Create account"}
           </button>
           {mode === "in" && (
             <button type="button" className="btn btn-ghost" disabled={busy}
@@ -396,7 +414,7 @@ function AgeGate({ userId, email, onDone, onSignOut }: {
         {err && <div role="alert" style={{ color: "var(--danger)", fontSize: 13 }}>⚠ {err}</div>}
 
         <button className="btn" disabled={busy || !validYear || (minor && !guardianEmail)} style={{ justifyContent: "center" }}>
-          {busy ? "…" : "Save and continue"}
+          {busy ? "Saving…" : "Save and continue"}
         </button>
         <button type="button" className="btn btn-ghost" style={{ justifyContent: "center", fontSize: 13 }} onClick={onSignOut}>
           Sign out of {email || "this account"}
@@ -432,7 +450,7 @@ function PendingConsentBanner({ guardianEmail, onResend }: {
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button className="btn btn-ghost" onClick={resend} disabled={state === "busy" || state === "sent"}>
-          {state === "busy" ? "…" : state === "sent" ? "✓ Sent again" : "Resend approval email"}
+          {state === "busy" ? "Sending…" : state === "sent" ? "✓ Sent again" : "Resend approval email"}
         </button>
         {state === "error" && <span style={{ color: "var(--danger)", fontSize: 13 }}>⚠ {err}</span>}
       </div>

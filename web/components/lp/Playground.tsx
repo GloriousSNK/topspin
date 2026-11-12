@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { usePathname } from "next/navigation";
 import { onScrollFrame } from "@/lib/scrollTicker";
 
 /* Scroll-driven physics for the Learn page.
@@ -69,34 +68,41 @@ function useScrubCanvas(draw: (ctx: CanvasRenderingContext2D, w: number, h: numb
 
     let w = 0, h = 0, lastW = -1, lastP = -1;
 
-    function resize() {
-      const rect = wrap!.getBoundingClientRect();
-      if (rect.width < 10 || rect.width === lastW) return; // ignore height-only RO refires
-      lastW = rect.width;
+    // Size from the wrapper's content box (it has padding). The canvas gets an
+    // explicit CSS width so a hi-DPI backing store is never shown at its
+    // attribute size (which overflowed the panel at devicePixelRatio > 1).
+    function size(cw: number) {
+      if (cw < 10 || cw === lastW) return; // ignore height-only RO refires
+      lastW = cw;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
-      w = rect.width; h = rect.width * 0.52;
+      w = cw; h = cw * 0.52;
+      canvas!.style.width = `${w}px`;
       canvas!.style.height = `${h}px`;
       canvas!.width = Math.round(w * dpr);
       canvas!.height = Math.round(h * dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0); // realloc clears state — reset transform
       lastP = -1;
-      render();
+      measure()?.();
     }
 
-    function render() {
+    // read phase for the shared scroll ticker; the draw is returned as the
+    // write phase so it never interleaves with other visuals' layout reads
+    function measure() {
       if (w === 0) return;
       const r = wrap!.getBoundingClientRect();
       const vh = window.innerHeight;
       const p = reduce ? 1 : Math.min(1, Math.max(0, (vh * 0.92 - r.top) / (vh * 0.72)));
       if (Math.abs(p - lastP) < 0.0015) return; // skip frames that wouldn't change a pixel
       lastP = p;
-      drawRef.current(ctx!, w, h, p);
+      return () => drawRef.current(ctx!, w, h, p);
     }
 
-    const ro = new ResizeObserver(resize);
+    // RO entries carry the content-box size, so no layout read is needed here
+    const ro = new ResizeObserver(([en]) => size(en.contentRect.width));
     ro.observe(wrap);
-    resize();
-    const unsub = reduce ? undefined : onScrollFrame(render);
+    const cs = getComputedStyle(wrap);
+    size(wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+    const unsub = reduce ? undefined : onScrollFrame(measure);
     return () => { ro.disconnect(); unsub?.(); };
   }, []);
 
@@ -222,30 +228,4 @@ export function ChaosScroll() {
       </div>
     </div>
   );
-}
-
-/* ================= site-wide: cards rise gently as they enter ================= */
-export function AutoReveal() {
-  const pathname = usePathname();
-  useEffect(() => {
-    if (pathname === "/") return; // the landing has its own choreography
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const els = Array.from(document.querySelectorAll<HTMLElement>("main .card, main .lp-panel, .site section .card"));
-    if (!els.length) return;
-    const io = new IntersectionObserver((ents) => {
-      for (const en of ents) {
-        if (en.isIntersecting) { en.target.classList.add("fx-in"); io.unobserve(en.target); }
-      }
-    }, { threshold: 0.1, rootMargin: "0px 0px -30px 0px" });
-    els.forEach((el, i) => {
-      el.classList.add("fx-pre");
-      el.style.setProperty("--fxd", `${(i % 3) * 70}ms`);
-      io.observe(el);
-    });
-    return () => {
-      io.disconnect();
-      els.forEach((el) => el.classList.remove("fx-pre", "fx-in"));
-    };
-  }, [pathname]);
-  return null;
 }

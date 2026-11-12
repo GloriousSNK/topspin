@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { addStudent, listStudentFolders } from "@/lib/students";
 import { ME, studentSubject, subjectStudentId, type StudentFolder, type Subject } from "@/lib/studentsLogic";
 
@@ -62,7 +62,11 @@ export default function SubjectPicker({
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const sorted = [...folders].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  // Stats renders one picker per history row, so sort once per folder list, not per render.
+  const sorted = useMemo(
+    () => [...folders].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+    [folders],
+  );
 
   async function create() {
     if (!name.trim() || busy) return;

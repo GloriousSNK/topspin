@@ -8,7 +8,8 @@
 // code normalisation — unit-tested, runnable anywhere with Web Crypto) and thin
 // CLIENT callers that talk to the /api/consent/* route handlers.
 
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabaseLazy";
+import { isSignedInAs } from "./accountGuard";
 
 // --- Age policy -------------------------------------------------------------
 // COPPA draws the US line at 13; GDPR-covered regions can be as high as 16. We
@@ -80,7 +81,10 @@ export function normalizeSquadCode(code: string): string {
 // Each POSTs to a route handler. The server verifies the cookie-backed session
 // before performing any service-role write.
 async function authedPost(path: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
-  if (!supabase) return { ok: false, error: "Accounts are not configured." };
+  // Config check only; no need to load the SDK for a plain fetch.
+  if (!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
+    return { ok: false, error: "Accounts are not configured." };
+  }
   try {
     const res = await fetch(path, {
       method: "POST",
@@ -108,17 +112,16 @@ export interface ConsentRow {
 
 // Reads the caller's own consent row (RLS already scopes this to the owner).
 export async function getMyConsent(expectedUserId: string): Promise<ConsentRow | null> {
+  const supabase = await getSupabase();
   if (!supabase) return null;
-  const { data: u } = await supabase.auth.getUser();
-  if (u.user?.id !== expectedUserId) return null;
+  if (!(await isSignedInAs(expectedUserId))) return null;
   const { data, error } = await supabase
     .from("account_consent")
     .select("user_id, birth_year, guardian_email, consent_status, requested_at, approved_at")
     .eq("user_id", expectedUserId)
     .maybeSingle();
   if (error) throw error;
-  const { data: current } = await supabase.auth.getUser();
-  if (current.user?.id !== expectedUserId) return null;
+  if (!(await isSignedInAs(expectedUserId))) return null;
   return (data as ConsentRow) ?? null;
 }
 

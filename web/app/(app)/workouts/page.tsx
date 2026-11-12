@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Workout, CatalogueDrill } from "@/lib/types";
 import { useAuth } from "@/components/AuthProvider";
@@ -12,14 +13,19 @@ import { BackendWakeupPanel } from "@/components/BackendStatus";
 const GOALS = ["all_round", "consistency", "power", "footwork", "serve", "volley"];
 const LEVELS = ["beginner", "intermediate", "advanced"];
 
-// Rank a catalogue drill against the search terms — simple text similarity.
-function scoreDrill(d: CatalogueDrill, terms: string[]): number {
+// Searchable text per drill, built once per catalogue load rather than per keystroke.
+type IndexedDrill = { d: CatalogueDrill; hay: string; words: string[] };
+function indexDrill(d: CatalogueDrill): IndexedDrill {
   const hay = `${d.name} ${d.focus} ${d.category} ${d.equipment} ${(d.addresses || []).join(" ")}`.toLowerCase();
-  const words = hay.split(/\W+/);
+  return { d, hay, words: hay.split(/\W+/).filter((w) => w.length > 2) };
+}
+
+// Rank a catalogue drill against the search terms — simple text similarity.
+function scoreDrill({ hay, words }: IndexedDrill, terms: string[]): number {
   let score = 0;
   for (const t of terms) {
     if (hay.includes(t)) score += 3;
-    else if (words.some((w) => w.length > 2 && (w.startsWith(t) || t.startsWith(w)))) score += 1;
+    else if (words.some((w) => w.startsWith(t) || t.startsWith(w))) score += 1;
   }
   return score;
 }
@@ -42,6 +48,7 @@ export default function Workouts() {
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [savingWorkout, setSavingWorkout] = useState(false);
   const [workoutCompleted, setWorkoutCompleted] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const activeUserId = useRef<string | null>(user?.id ?? null);
 
   useEffect(() => {
@@ -69,19 +76,21 @@ export default function Workouts() {
     activeUserId.current = user?.id ?? null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- saved state belongs to one account only
     setSavedIds(new Set()); setWorkoutSaved(false); setWorkoutCompleted(false); setSaveMsg(null);
-    setSavingIds(new Set()); setSavingWorkout(false);
+    setSavingIds(new Set()); setSavingWorkout(false); setCompleting(false);
   }, [user?.id]);
+
+  const index = useMemo(() => catalogue.map(indexDrill), [catalogue]);
 
   const results = useMemo(() => {
     const terms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
     if (!terms.length) return [];
-    return catalogue
-      .map((d) => ({ d, s: scoreDrill(d, terms) }))
+    return index
+      .map((x) => ({ d: x.d, s: scoreDrill(x, terms) }))
       .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s)
       .slice(0, 6)
       .map((x) => x.d);
-  }, [query, catalogue]);
+  }, [query, index]);
 
   async function generate() {
     setBusy(true); setErr(null); setWorkoutSaved(false); setWorkoutCompleted(false);
@@ -129,12 +138,14 @@ export default function Workouts() {
   }
 
   async function completeGoalWorkout() {
-    if (!workout || workoutCompleted) return;
+    if (!workout || workoutCompleted || completing) return;
     const ownerId = user?.id ?? null;
+    setCompleting(true);
     const ok = ownerId
       ? await completePractice(ownerId, workout.title, workout.drills.length)
       : !!completeLocalPractice(workout.title, workout.drills.length);
     if (activeUserId.current !== ownerId) return;
+    setCompleting(false);
     setWorkoutCompleted(ok);
     setSaveMsg(ok
       ? { ok: true, text: "Practice marked complete and added to your Stats." }
@@ -182,7 +193,7 @@ export default function Workouts() {
             {saveMsg.ok ? "✓ " : "⚠ "}{saveMsg.text}
           </span>
           {saveMsg.ok && (
-            <a href="/stats" style={{ marginLeft: 10, color: "var(--court)", fontWeight: 600, fontSize: 14 }}>View in Stats →</a>
+            <Link href="/stats" style={{ marginLeft: 10, color: "var(--court)", fontWeight: 600, fontSize: 14 }}>View in Stats →</Link>
           )}
         </div>
       )}
@@ -243,8 +254,8 @@ export default function Workouts() {
                 <button className="btn btn-ghost" style={{ padding: "6px 14px", fontSize: 13 }} onClick={saveGoalWorkout} disabled={workoutSaved || savingWorkout}>
                   {workoutSaved ? "✓ Saved" : savingWorkout ? "Saving…" : "Save workout"}
                 </button>
-                <button className="btn" style={{ padding: "6px 14px", fontSize: 13 }} onClick={completeGoalWorkout} disabled={workoutCompleted}>
-                  {workoutCompleted ? "Practice complete" : "Mark practice complete"}
+                <button className="btn" style={{ padding: "6px 14px", fontSize: 13 }} onClick={completeGoalWorkout} disabled={workoutCompleted || completing}>
+                  {workoutCompleted ? "Practice complete" : completing ? "Saving…" : "Mark practice complete"}
                 </button>
               </div>
           </div>
@@ -268,6 +279,14 @@ export default function Workouts() {
         </div>
       )}
 
+      <CatalogueTable catalogue={catalogue} />
+    </div>
+  );
+}
+
+// Memoised so typing in the search box doesn't re-render the whole catalogue.
+const CatalogueTable = memo(function CatalogueTable({ catalogue }: { catalogue: CatalogueDrill[] }) {
+  return (
       <div className="card">
         <div className="card-title">Drill catalogue · {catalogue.length} drills</div>
         <div className="table-wrap">
@@ -292,9 +311,8 @@ export default function Workouts() {
           </table>
         </div>
       </div>
-    </div>
   );
-}
+});
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

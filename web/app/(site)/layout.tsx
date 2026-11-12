@@ -1,6 +1,6 @@
 import TopNav from "@/components/TopNav";
 import Footer from "@/components/Footer";
-import { AutoReveal } from "@/components/lp/Playground";
+import { AutoReveal } from "@/components/lp/AutoReveal";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (

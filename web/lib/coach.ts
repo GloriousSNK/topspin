@@ -1,4 +1,5 @@
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabaseLazy";
+import { isSignedInAs } from "./accountGuard";
 import type { SharePayload } from "./history";
 
 export type AccountRole = "player" | "coach";
@@ -66,13 +67,11 @@ export interface CoachAnalysisShare {
   noted_at: string | null;
 }
 
-async function matches(userId: string): Promise<boolean> {
-  if (!supabase) return false;
-  const { data, error } = await supabase.auth.getUser();
-  return !error && data.user?.id === userId;
-}
+// Local (no network) "still the same account?" check — see lib/accountGuard.ts.
+const matches = isSignedInAs;
 
 export async function getCoachContext(userId: string): Promise<CoachContext | null> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return null;
   const { data, error } = await supabase.rpc("get_my_coach_context");
   if (error || !(await matches(userId))) return null;
@@ -85,12 +84,14 @@ export async function getCoachContext(userId: string): Promise<CoachContext | nu
 }
 
 export async function chooseRole(userId: string, role: AccountRole): Promise<AccountRole | null> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return null;
   const { data, error } = await supabase.rpc("choose_account_role", { p_role: role });
   return error || !(await matches(userId)) ? null : data as AccountRole;
 }
 
 export async function createSquad(userId: string, name: string): Promise<CreateSquadResult> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return { squad: null, error: "session" };
   const { data, error } = await supabase.rpc("create_my_squad", { p_name: name });
   const row = Array.isArray(data) ? data[0] : null;
@@ -111,6 +112,7 @@ export async function createSquad(userId: string, name: string): Promise<CreateS
 }
 
 export async function joinSquad(userId: string, code: string): Promise<MembershipSummary | null> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return null;
   const { data, error } = await supabase.rpc("join_squad", { p_code: code });
   const row = Array.isArray(data) ? data[0] : null;
@@ -119,6 +121,7 @@ export async function joinSquad(userId: string, code: string): Promise<Membershi
 }
 
 export async function leaveSquad(userId: string): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return false;
   const { error } = await supabase.rpc("leave_squad");
   return !error && await matches(userId);
@@ -130,6 +133,7 @@ export async function syncPlayerSummary(
   formScore: number | null,
   drillsCompleted = 0,
 ): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return false;
   const { data, error } = await supabase.rpc("sync_player_summary", {
     p_stroke: stroke,
@@ -140,12 +144,14 @@ export async function syncPlayerSummary(
 }
 
 export async function completePractice(userId: string, title: string, drillsCompleted: number): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return false;
   const { data, error } = await supabase.rpc("complete_practice", { p_title: title, p_drills_completed: drillsCompleted });
   return !error && !!data && await matches(userId);
 }
 
 export async function getPracticeCompletions(userId: string): Promise<PracticeCompletion[]> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return [];
   const { data, error } = await supabase.from("practice_completions")
     .select("id, title, drills_completed, completed_at").eq("user_id", userId)
@@ -154,24 +160,28 @@ export async function getPracticeCompletions(userId: string): Promise<PracticeCo
 }
 
 export async function getCoachRoster(userId: string): Promise<RosterPlayer[]> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return [];
   const { data, error } = await supabase.rpc("get_coach_roster");
   return error || !(await matches(userId)) || !Array.isArray(data) ? [] : data as RosterPlayer[];
 }
 
 export async function getCoachPlayerHistory(userId: string, playerId: string): Promise<CoachPlayerHistory | null> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return null;
   const { data, error } = await supabase.rpc("get_coach_player_history", { p_player_id: playerId });
   return error || !data || !(await matches(userId)) ? null : data as CoachPlayerHistory;
 }
 
 export async function shareAnalysisWithCoach(userId: string, payload: SharePayload): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return false;
   const { data, error } = await supabase.rpc("share_analysis_with_coach", { p_payload: payload });
   return !error && !!data && await matches(userId);
 }
 
 export async function getSharedAnalyses(userId: string, playerId: string): Promise<CoachAnalysisShare[]> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return [];
   const { data, error } = await supabase.from("coach_analysis_shares")
     .select("id, player_id, payload, coach_note, created_at, noted_at")
@@ -180,6 +190,7 @@ export async function getSharedAnalyses(userId: string, playerId: string): Promi
 }
 
 export async function saveCoachNote(userId: string, shareId: string, note: string): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return false;
   const { data, error } = await supabase.from("coach_analysis_shares")
     .update({ coach_note: note.trim() || null, noted_at: new Date().toISOString() })
@@ -207,6 +218,7 @@ export async function createParentReport(
   playerId: string,
   payload: ParentReportPayload,
 ): Promise<string | null> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return null;
   const id = publicId();
   const { data, error } = await supabase.rpc("create_parent_report", {
@@ -218,6 +230,7 @@ export async function createParentReport(
 }
 
 export async function getParentReport(id: string): Promise<ParentReportPayload | null> {
+  const supabase = await getSupabase();
   if (!supabase || !/^[A-Za-z0-9_-]{24,64}$/.test(id)) return null;
   const { data, error } = await supabase.rpc("get_parent_report", { p_id: id });
   return error ? null : data as ParentReportPayload | null;

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useTrafficStats } from "@/lib/useTrafficStats";
 
 /* The credibility strip under the hero. Most of it is fixed fact about how the
@@ -20,10 +21,14 @@ const FIXED = [
 // reads a bare zero. Roughly where usage actually sits.
 const FALLBACK_CLIPS = 88;
 
+// The stats hook hands back a fresh object on every 15s poll; the strip only
+// depends on one number, so it is memoised on that and skips no-op renders.
 export default function LiveMarquee() {
   const stats = useTrafficStats();
-  const clips = stats?.videos_analyzed ?? FALLBACK_CLIPS;
+  return <Strip clips={stats?.videos_analyzed ?? FALLBACK_CLIPS} />;
+}
 
+const Strip = memo(function Strip({ clips }: { clips: number }) {
   const items = [...FIXED];
   items.splice(5, 0, `${clips.toLocaleString()} videos analysed`);
 
@@ -38,4 +43,4 @@ export default function LiveMarquee() {
       </div>
     </div>
   );
-}
+});

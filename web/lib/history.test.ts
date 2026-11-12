@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PoseAnalysis } from "./pose";
 
 const mocks = vi.hoisted(() => ({
+  getSession: vi.fn(),
   getUser: vi.fn(),
   insert: vi.fn(),
   from: vi.fn(),
@@ -9,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("./supabase", () => ({
   supabase: {
-    auth: { getUser: mocks.getUser },
+    auth: { getSession: mocks.getSession, getUser: mocks.getUser },
     from: mocks.from,
   },
 }));
@@ -33,7 +34,7 @@ describe("account-scoped history writes", () => {
   });
 
   it("refuses a write when the active account changed", async () => {
-    mocks.getUser.mockResolvedValue({ data: { user: { id: "account-b" } }, error: null });
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "account-b" } } }, error: null });
 
     await saveSession(analysis, "account-a");
 
@@ -41,7 +42,7 @@ describe("account-scoped history writes", () => {
   });
 
   it("writes only to the account captured when the action started", async () => {
-    mocks.getUser.mockResolvedValue({ data: { user: { id: "account-a" } }, error: null });
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "account-a" } } }, error: null });
 
     await expect(saveSession(analysis, "account-a")).resolves.toBe("session-1");
 
@@ -50,9 +51,9 @@ describe("account-scoped history writes", () => {
   });
 
   it("discards a private read when the account changes before it returns", async () => {
-    mocks.getUser
-      .mockResolvedValueOnce({ data: { user: { id: "account-a" } }, error: null })
-      .mockResolvedValueOnce({ data: { user: { id: "account-b" } }, error: null });
+    mocks.getSession
+      .mockResolvedValueOnce({ data: { session: { user: { id: "account-a" } } }, error: null })
+      .mockResolvedValueOnce({ data: { session: { user: { id: "account-b" } } }, error: null });
     const limit = vi.fn().mockResolvedValue({ data: [{ id: "from-account-a" }] });
     const order = vi.fn().mockReturnValue({ limit });
     const eq = vi.fn().mockReturnValue({ order });
@@ -60,5 +61,25 @@ describe("account-scoped history writes", () => {
     mocks.from.mockReturnValue({ select });
 
     await expect(getSessions("account-a")).resolves.toEqual([]);
+  });
+
+  it("returns the owner-filtered rows without a network identity round trip", async () => {
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: "account-a" } } }, error: null });
+    const limit = vi.fn().mockResolvedValue({ data: [{ id: "row-1" }] });
+    const order = vi.fn().mockReturnValue({ limit });
+    const eq = vi.fn().mockReturnValue({ order });
+    const select = vi.fn().mockReturnValue({ eq });
+    mocks.from.mockReturnValue({ select });
+
+    await expect(getSessions("account-a")).resolves.toEqual([{ id: "row-1" }]);
+    expect(eq).toHaveBeenCalledWith("user_id", "account-a");
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it("refuses a write when nobody is signed in", async () => {
+    mocks.getSession.mockResolvedValue({ data: { session: null }, error: null });
+
+    await expect(saveSession(analysis, "account-a")).resolves.toBeNull();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 });

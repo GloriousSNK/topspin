@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
+import { preconnect } from "react-dom";
 import "./globals.css";
 import Analytics from "@/components/Analytics";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
@@ -13,10 +14,15 @@ const geistSans = Geist({
   display: "swap",
 });
 
+// Mono only sets small labels, so it isn't preloaded: that keeps ~23KB off the
+// high-priority preload queue on a first visit (CSS, body and display fonts go
+// first). It's still fetched as soon as the CSS is applied, and next/font's
+// metric-adjusted fallback keeps the swap from shifting layout.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
   display: "swap",
+  preload: false,
 });
 
 // Editorial serif for headings. Loaded as the variable font (one file per
@@ -89,11 +95,27 @@ const jsonLd = [
   },
 ];
 
+// Every page warms the physics server right after hydration (BackendStatus) and
+// the tool pages call it directly, so open that TLS connection from the document
+// head instead of after hydration. Same base as lib/api.ts; the warm-up is a
+// credential-less CORS fetch, hence crossOrigin "anonymous".
+const ML_ORIGIN = (() => {
+  try {
+    return new URL(
+      process.env.NEXT_PUBLIC_ML_URL
+        ?? (process.env.NODE_ENV === "production" ? "https://tennis-ml.onrender.com" : "http://127.0.0.1:8000"),
+    ).origin;
+  } catch {
+    return null; // a malformed env value must never take the whole site down
+  }
+})();
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  if (ML_ORIGIN) preconnect(ML_ORIGIN, { crossOrigin: "anonymous" });
   return (
     <html
       lang="en"

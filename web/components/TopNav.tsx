@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BrandMark from "./BrandMark";
@@ -28,6 +28,33 @@ const EXPLORE: NavItem[] = [
   { href: "/about", label: "About", description: "Why TopSpin exists" },
 ];
 
+// Static per role, so they are built once rather than on every render.
+const COACH_MORE: NavGroup[] = [
+  {
+    label: "Coach",
+    items: [{ href: "/account#coach-connection", label: "Squads & account", description: "Codes, profile and account settings" }],
+  },
+  {
+    label: "More tools",
+    items: [
+      { href: "/batch", label: "Batch analysis", description: "Queue several clips" },
+      { href: "/ball-lab", label: "Ball Lab", description: "Explore flight and spin" },
+    ],
+  },
+  { label: "Explore", items: EXPLORE },
+];
+
+const PLAYER_MORE: NavGroup[] = [
+  {
+    label: "Analysis",
+    items: [{ href: "/batch", label: "Batch analysis", description: "Queue several clips" }],
+  },
+  { label: "Explore", items: EXPLORE },
+];
+
+const COACH_MOBILE: NavGroup[] = [{ label: "Coach workspace", items: COACH_PRIMARY }, ...COACH_MORE];
+const PLAYER_MOBILE: NavGroup[] = [{ label: "Train", items: PLAYER_PRIMARY }, ...PLAYER_MORE];
+
 export function routeIsActive(path: string, href: string): boolean {
   const [route, fragment] = href.split("#");
   if (fragment) return false;
@@ -39,31 +66,15 @@ export default function TopNav() {
   const { user, loading, role } = useAuth();
   const isCoach = role === "coach";
   const primary = isCoach ? COACH_PRIMARY : PLAYER_PRIMARY;
-  const moreGroups: NavGroup[] = isCoach ? [
-    {
-      label: "Coach",
-      items: [{ href: "/account#coach-connection", label: "Squads & account", description: "Codes, profile and account settings" }],
-    },
-    {
-      label: "More tools",
-      items: [
-        { href: "/batch", label: "Batch analysis", description: "Queue several clips" },
-        { href: "/ball-lab", label: "Ball Lab", description: "Explore flight and spin" },
-      ],
-    },
-    { label: "Explore", items: EXPLORE },
-  ] : [
-    {
-      label: "Analysis",
-      items: [{ href: "/batch", label: "Batch analysis", description: "Queue several clips" }],
-    },
-    { label: "Explore", items: EXPLORE },
-  ];
-  const mobileGroups: NavGroup[] = [
-    { label: isCoach ? "Coach workspace" : "Train", items: primary },
-    ...moreGroups,
-  ];
+  const moreGroups = isCoach ? COACH_MORE : PLAYER_MORE;
+  const mobileGroups = isCoach ? COACH_MOBILE : PLAYER_MOBILE;
   const initial = (user?.email ?? "?").charAt(0).toUpperCase();
+  const roleLabel = isCoach ? "Coach" : role === "player" ? "Player" : "Account";
+  const signedIn = !!user;
+  const email = user?.email;
+  // Stable props so the memoised MobileMenu skips re-rendering on unrelated updates.
+  const account = useMemo(() => ({ href: "/account", label: signedIn ? "Account settings" : "Sign in or create account" }), [signedIn]);
+  const identity = useMemo(() => signedIn ? { email: email ?? "Signed in", role: roleLabel } : null, [signedIn, email, roleLabel]);
 
   return (
     <header className="navbar">
@@ -89,7 +100,7 @@ export default function TopNav() {
               <span className="nav-avatar" aria-hidden="true">{initial}</span>
               <span className="nav-account-copy">
                 <span className="nav-email">{user.email}</span>
-                <span className="nav-role">{isCoach ? "Coach" : role === "player" ? "Player" : "Account"}</span>
+                <span className="nav-role">{roleLabel}</span>
               </span>
             </Link>
           ) : (
@@ -97,8 +108,8 @@ export default function TopNav() {
           )}
           <MobileMenu
             groups={mobileGroups}
-            account={{ href: "/account", label: user ? "Account settings" : "Sign in or create account" }}
-            identity={user ? { email: user.email ?? "Signed in", role: isCoach ? "Coach" : role === "player" ? "Player" : "Account" } : null}
+            account={account}
+            identity={identity}
             loading={loading}
           />
         </div>
@@ -107,7 +118,7 @@ export default function TopNav() {
   );
 }
 
-function MoreMenu({ groups, path }: { groups: NavGroup[]; path: string }) {
+const MoreMenu = memo(function MoreMenu({ groups, path }: { groups: NavGroup[]; path: string }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -164,4 +175,4 @@ function MoreMenu({ groups, path }: { groups: NavGroup[]; path: string }) {
       )}
     </div>
   );
-}
+});

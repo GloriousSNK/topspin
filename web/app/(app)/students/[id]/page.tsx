@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { useStudentFolders } from "@/components/SubjectPicker";
 import ContactSkeleton from "@/components/ContactSkeleton";
+import PageSkeleton from "../../_components/PageSkeleton";
 import {
   deleteStudent, deleteStudentAnalysis, getStudentFolder, refile, renameStudent, setStudentNote,
   updateStudentAnalysis, type AnalysisPatch,
@@ -30,6 +31,7 @@ export default function StudentFolderPage() {
   const [starredOnly, setStarredOnly] = useState(false);
   const [stroke, setStroke] = useState("all");
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
+  const [deletingFolder, setDeletingFolder] = useState(false);
   const active = useRef<string | null>(coachId);
 
   useEffect(() => {
@@ -52,10 +54,22 @@ export default function StudentFolderPage() {
   const shown = useMemo(() => sortAnalyses(
     rows.filter((r) => (!starredOnly || r.starred) && (stroke === "all" || r.stroke === stroke)), sort,
   ), [rows, sort, starredOnly, stroke]);
-  const scored = rows.filter((r) => typeof r.form_score === "number") as (StudentAnalysisRow & { form_score: number })[];
-  const average = scored.length ? Math.round(scored.reduce((n, r) => n + r.form_score, 0) / scored.length) : null;
-  const best = scored.length ? Math.max(...scored.map((r) => r.form_score)) : null;
-  const chrono = [...scored].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  // Folder stats are derived once per data change (up to 1000 rows), not on every
+  // render — filters, notices and note typing re-render this page often.
+  const { average, best, chrono, latest } = useMemo(() => {
+    const scored = rows.filter((r) => typeof r.form_score === "number") as (StudentAnalysisRow & { form_score: number })[];
+    const chrono = [...scored].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    return {
+      chrono,
+      average: scored.length ? Math.round(scored.reduce((n, r) => n + r.form_score, 0) / scored.length) : null,
+      best: scored.length ? Math.max(...scored.map((r) => r.form_score)) : null,
+      latest: chrono.length ? chrono[chrono.length - 1].form_score : null,
+    };
+  }, [rows]);
+  const moveTargets = useMemo(
+    () => folders.filter((f) => f.id !== id).sort((a, b) => a.name.localeCompare(b.name)),
+    [folders, id],
+  );
 
   async function patch(analysisId: string, change: AnalysisPatch): Promise<boolean> {
     if (!coachId) return false;
@@ -69,20 +83,26 @@ export default function StudentFolderPage() {
 
   async function removeAnalysis(row: StudentAnalysisRow) {
     if (!coachId || !confirm(`Delete "${analysisTitle(row)}"? This can't be undone.`)) return;
+    // Optimistic: the row goes immediately and comes back if the delete fails.
+    setRows((all) => all.filter((r) => r.id !== row.id));
     const ok = await deleteStudentAnalysis(coachId, row.id).catch(() => false);
     if (active.current !== coachId) return;
-    if (ok) setRows((all) => all.filter((r) => r.id !== row.id));
-    else setNotice({ text: "Couldn't delete that analysis.", error: true });
+    if (!ok) { restore(row); setNotice({ text: "Couldn't delete that analysis.", error: true }); }
+  }
+
+  // Put a row back after a failed optimistic change (the list is re-sorted on render).
+  function restore(row: StudentAnalysisRow) {
+    setRows((all) => all.some((r) => r.id === row.id) ? all : [...all, row]);
   }
 
   async function move(row: StudentAnalysisRow, to: Subject) {
     if (!coachId || !student) return;
     if (to === ME && (row.note || row.title || row.starred)
       && !confirm("Your own history doesn't keep titles, stars or notes. Move it anyway?")) return;
+    setRows((all) => all.filter((r) => r.id !== row.id)); // optimistic, rolled back below on failure
     const moved = await refile(coachId, { subject: studentSubject(student.id), id: row.id }, to).catch(() => null);
     if (active.current !== coachId) return;
-    if (!moved) { setNotice({ text: "Couldn't move that analysis.", error: true }); return; }
-    setRows((all) => all.filter((r) => r.id !== row.id));
+    if (!moved) { restore(row); setNotice({ text: "Couldn't move that analysis.", error: true }); return; }
     const target = to === ME ? "your own history" : `${folders.find((f) => studentSubject(f.id) === to)?.name ?? "the other"}'s folder`;
     setNotice({ text: `Moved "${analysisTitle(row)}" to ${target}.` });
   }
@@ -98,24 +118,28 @@ export default function StudentFolderPage() {
     if (!coachId || !student) return;
     const n = rows.length;
     if (!confirm(`Delete ${student.name}'s folder${n ? ` and all ${n} ${n === 1 ? "analysis" : "analyses"} in it` : ""}? This can't be undone.`)) return;
+    setDeletingFolder(true);
     const ok = await deleteStudent(coachId, student.id).catch(() => false);
     if (active.current !== coachId) return;
-    if (ok) router.push("/students");
-    else setNotice({ text: "Couldn't delete this folder.", error: true });
+    if (ok) { router.push("/students"); return; }
+    setDeletingFolder(false);
+    setNotice({ text: "Couldn't delete this folder.", error: true });
   }
 
-  if (loading || roleLoading || (coachId && state === "loading")) return <h1 className="h1">Student</h1>;
+  if (loading || roleLoading || (coachId && state === "loading")) {
+    return <PageSkeleton title="Student" backLink={<Link href="/students" className="back-link">← Students</Link>}
+      blocks={[56, 140, 120, 96, 96]} />;
+  }
   if (!user || role !== "coach") return <Message text="Sign in with a coach account to open student folders." />;
   if (state === "setup") return <Message text="Student folders need the supabase-coach-students.sql migration. Run it in Supabase, then refresh." />;
   if (state === "missing") return <Message text="This folder doesn't exist, or it belongs to another account." />;
   if (state === "error" || !student) return <Message text="We couldn't load this folder. Refresh and try again." />;
 
-  const moveTargets = folders.filter((f) => f.id !== student.id);
 
   return (
     <div>
       <Link href="/students" className="back-link">← Students</Link>
-      <FolderHeading name={student.name} onRename={rename} onDelete={removeFolder} />
+      <FolderHeading name={student.name} onRename={rename} onDelete={removeFolder} deleting={deletingFolder} />
       <p className="lead">
         {rows.length ? `${rows.length} ${rows.length === 1 ? "analysis" : "analyses"} filed here.` : "No analyses filed here yet."}{" "}
         Only you can see this folder.
@@ -136,7 +160,7 @@ export default function StudentFolderPage() {
       {rows.length > 0 && (
         <div className="grid grid-4" style={{ marginBottom: 18 }}>
           <Stat value={rows.length} label="Analyses" />
-          <Stat value={scored[0] ? sortAnalyses(scored, "newest")[0].form_score : "--"} label="Latest form" accent />
+          <Stat value={latest ?? "--"} label="Latest form" accent />
           <Stat value={average ?? "--"} label="Average form" />
           <Stat value={best ?? "--"} label="Best form" />
         </div>
@@ -209,7 +233,9 @@ export default function StudentFolderPage() {
   );
 }
 
-function FolderHeading({ name, onRename, onDelete }: { name: string; onRename: (name: string) => Promise<boolean>; onDelete: () => void }) {
+function FolderHeading({ name, onRename, onDelete, deleting }: {
+  name: string; onRename: (name: string) => Promise<boolean>; onDelete: () => void; deleting: boolean;
+}) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
   const [failed, setFailed] = useState(false);
@@ -231,7 +257,7 @@ function FolderHeading({ name, onRename, onDelete }: { name: string; onRename: (
       )}
       <div className="folder-heading-actions">
         {!editing && <button className="btn btn-ghost" onClick={() => { setValue(name); setEditing(true); }}>Rename</button>}
-        <button className="btn btn-danger" onClick={onDelete}>Delete folder</button>
+        <button className="btn btn-danger" onClick={onDelete} disabled={deleting}>{deleting ? "Deleting…" : "Delete folder"}</button>
       </div>
       {failed && <div role="alert" style={{ color: "var(--danger)", fontSize: 13, width: "100%" }}>Couldn&apos;t rename. Try again.</div>}
     </div>
@@ -372,7 +398,7 @@ function AnalysisItem({ row, studentName, moveTargets, onPatch, onDelete, onMove
               <option value="">Move to…</option>
               {moveTargets.length > 0 && (
                 <optgroup label="Students">
-                  {[...moveTargets].sort((a, b) => a.name.localeCompare(b.name)).map((f) =>
+                  {moveTargets.map((f) =>
                     <option key={f.id} value={studentSubject(f.id)}>{f.name}</option>)}
                 </optgroup>
               )}

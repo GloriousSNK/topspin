@@ -9,6 +9,21 @@ import { useEffect, useRef } from "react";
  * uses), a fading flight trail, a landing dispersion cloud, ripples on
  * impact, and a telemetry HUD reading live values out of the simulation.
  * Pointer moves the camera a few degrees. Pauses offscreen and off-tab.
+ *
+ * Frame budget notes (this runs every frame behind the hero CTAs):
+ * - zero allocations per frame: physics, projection and trails use scratch
+ *   numbers and fixed ring buffers;
+ * - colour alpha goes through globalAlpha against constant colours, so no
+ *   per-frame rgba() strings are built and parsed;
+ * - the ball glow is a pre-rendered sprite instead of a new radial gradient
+ *   per ball per frame;
+ * - the backing store is capped (≤2x, and ~2.6M device px for big screens);
+ * - the pointer handler only stores coordinates; the camera target is
+ *   computed in the frame from a rect cached by ResizeObserver /
+ *   IntersectionObserver, so there are no layout reads during input;
+ * - the loop starts when the browser is idle after hydration, so the hero
+ *   text and buttons are interactive first. The court is painted immediately.
+ * - telemetry is written straight to text nodes on launch/landing only.
  */
 
 // ---- physics constants (mirrors ml-service/app/core/ball_physics.py) ----
@@ -18,14 +33,20 @@ const COURT_L = 23.77, COURT_W_HALF = 4.115, DOUBLES_HALF = 5.485;
 const NET_X = 11.885, NET_H = 1.0;
 const SERVICE_NEAR = 5.485, SERVICE_FAR = 18.285;
 
+const TRAIL_MAX = 110;
+const DT = 1 / 200;
+const BUDGET_PX = 2.6e6;          // max device pixels for the hero backing store
+const GLOW_REF = 12;              // sprite reference ball radius (CSS px)
+
 type V3 = [number, number, number];
 
-function accel(v: V3, w: V3): V3 {
+/** Writes the acceleration for velocity v, spin w into out (no allocation). */
+function accel(v: V3, w: V3, out: V3): void {
   const speed = Math.hypot(v[0], v[1], v[2]);
-  const a: V3 = [0, 0, -G];
-  if (speed < 1e-9) return a;
+  out[0] = 0; out[1] = 0; out[2] = -G;
+  if (speed < 1e-9) return;
   const dragK = (0.5 * RHO * CD * AREA * speed) / M;
-  a[0] -= dragK * v[0]; a[1] -= dragK * v[1]; a[2] -= dragK * v[2];
+  out[0] -= dragK * v[0]; out[1] -= dragK * v[1]; out[2] -= dragK * v[2];
   // Magnus: 0.5 rho Cl A |v|^2 * (w x v)/|w x v|
   const cx = w[1] * v[2] - w[2] * v[1];
   const cy = w[2] * v[0] - w[0] * v[2];
@@ -36,19 +57,48 @@ function accel(v: V3, w: V3): V3 {
     const ratio = (R * spinRate) / speed;
     const cl = (ratio / (2 + ratio)) * 0.9;
     const mk = (0.5 * RHO * cl * AREA * speed * speed) / M / cn;
-    a[0] += mk * cx; a[1] += mk * cy; a[2] += mk * cz;
+    out[0] += mk * cx; out[1] += mk * cy; out[2] += mk * cz;
   }
-  return a;
 }
 
 interface Ball {
   p: V3; v: V3; w: V3;
-  trail: V3[];
+  trail: Float64Array;     // ring buffer of TRAIL_MAX xyz points
+  tStart: number; tLen: number;
   live: boolean;
   wait: number;            // frames to wait before relaunch
 }
 interface Mark { x: number; y: number; in: boolean; age: number; }
 interface Ripple { x: number; y: number; t: number; in: boolean; }
+
+const newBall = (wait: number): Ball => ({
+  p: [0, 0, 1], v: [0, 0, 0], w: [0, 0, 0],
+  trail: new Float64Array(TRAIL_MAX * 3), tStart: 0, tLen: 0,
+  live: false, wait,
+});
+
+function pushTrail(b: Ball) {
+  let i: number;
+  if (b.tLen < TRAIL_MAX) { i = (b.tStart + b.tLen) % TRAIL_MAX; b.tLen++; }
+  else { i = b.tStart; b.tStart = (b.tStart + 1) % TRAIL_MAX; }
+  b.trail[i * 3] = b.p[0]; b.trail[i * 3 + 1] = b.p[1]; b.trail[i * 3 + 2] = b.p[2];
+}
+
+/** The ball's glow, drawn once at a reference size and scaled per frame. */
+function makeGlow(dpr: number): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  const r = GLOW_REF * dpr, s = Math.ceil(r * 4.8);
+  c.width = c.height = s;
+  const g = c.getContext("2d")!;
+  const cx = s / 2;
+  const grad = g.createRadialGradient(cx - r * 0.3, cx - r * 0.3, 0, cx, cx, r * 2.4);
+  grad.addColorStop(0, "rgba(222, 244, 80, 1)");
+  grad.addColorStop(0.4, "rgba(174, 199, 32, 0.95)");
+  grad.addColorStop(1, "rgba(174, 199, 32, 0)");
+  g.fillStyle = grad;
+  g.beginPath(); g.arc(cx, cx, r * 2.4, 0, Math.PI * 2); g.fill();
+  return c;
+}
 
 export default function PhysicsHero() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -67,22 +117,25 @@ export default function PhysicsHero() {
 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let W = 0, H = 0, dpr = 1;
-    let raf = 0, running = true, visible = true;
+    let raf = 0, alive = true, started = false, visible = true;
+    let glow: HTMLCanvasElement | null = null, glowDpr = 0;
 
     // ---- camera (pointer-steered, critically damped) ----
     const cam = { y: 0, z: 2.6, ty: 0, tz: 2.6 };
     const CAMX = -7.5;
-    const fl = () => W * 0.78;
+    let FL = 0; // focal length, W * 0.78
 
-    function project(p: V3): [number, number, number] {
-      const dx = p[0] - CAMX, dy = p[1] - cam.y, dz = p[2] - cam.z;
-      const s = fl() / dx;
-      return [W / 2 + dy * s, H * 0.46 - dz * s, dx];
+    // projection writes into these three scratch slots (no tuple allocation)
+    let PX = 0, PY = 0, PD = 0;
+    function project(x: number, y: number, z: number) {
+      const dx = x - CAMX, dy = y - cam.y, dz = z - cam.z;
+      const s = FL / dx;
+      PX = W / 2 + dy * s; PY = H * 0.46 - dz * s; PD = dx;
     }
 
-    // ---- court wireframe segments ----
-    const segs: [V3, V3][] = [];
-    const seg = (a: V3, b: V3) => segs.push([a, b]);
+    // ---- court wireframe segments, flat [x1,y1,z1,x2,y2,z2,...] ----
+    const segList: number[] = [];
+    const seg = (a: V3, b: V3) => segList.push(a[0], a[1], a[2], b[0], b[1], b[2]);
     // doubles + singles sidelines, baselines
     for (const y of [-DOUBLES_HALF, -COURT_W_HALF, COURT_W_HALF, DOUBLES_HALF])
       seg([0, y, 0], [COURT_L, y, 0]);
@@ -95,16 +148,18 @@ export default function PhysicsHero() {
     // centre marks
     seg([0, 0, 0], [0.35, 0, 0]);
     seg([COURT_L - 0.35, 0, 0], [COURT_L, 0, 0]);
+    const segs = Float64Array.from(segList);
 
     // ---- state ----
-    const balls: Ball[] = [
-      { p: [0, 0, 1], v: [0, 0, 0], w: [0, 0, 0], trail: [], live: false, wait: 10 },
-      { p: [0, 0, 1], v: [0, 0, 0], w: [0, 0, 0], trail: [], live: false, wait: 140 },
-    ];
+    const balls: Ball[] = [newBall(10), newBall(140)];
     const marks: Mark[] = [];
     const ripples: Ripple[] = [];
     let shotNo = 0;
     let apex = 0;
+    // scratch vectors for the integrator
+    const a1: V3 = [0, 0, 0], a2: V3 = [0, 0, 0], vm: V3 = [0, 0, 0];
+    // projected trail points, reused by every ball
+    const trailXY = new Float32Array(TRAIL_MAX * 2);
 
     function launch(b: Ball) {
       shotNo += 1;
@@ -112,16 +167,14 @@ export default function PhysicsHero() {
       const speed = 23 + Math.random() * 11;                  // m/s
       const elev = (5 + Math.random() * 9) * (Math.PI / 180);
       const azim = Math.atan2((Math.random() - 0.5) * 6 - y0 * 0.6, 22);
-      b.p = [0.4, y0, 0.9 + Math.random() * 0.5];
-      b.v = [
-        speed * Math.cos(elev) * Math.cos(azim),
-        speed * Math.cos(elev) * Math.sin(azim),
-        speed * Math.sin(elev),
-      ];
+      b.p[0] = 0.4; b.p[1] = y0; b.p[2] = 0.9 + Math.random() * 0.5;
+      b.v[0] = speed * Math.cos(elev) * Math.cos(azim);
+      b.v[1] = speed * Math.cos(elev) * Math.sin(azim);
+      b.v[2] = speed * Math.sin(elev);
       const topspin = 120 + Math.random() * 200;              // rad/s
       const side = (Math.random() - 0.5) * 60;
-      b.w = [0, topspin, side];
-      b.trail = [];
+      b.w[0] = 0; b.w[1] = topspin; b.w[2] = side;
+      b.tStart = 0; b.tLen = 0;
       b.live = true;
       apex = b.p[2];
       // telemetry: launch values
@@ -145,142 +198,199 @@ export default function PhysicsHero() {
       b.wait = 55 + Math.random() * 70;
     }
 
-    const DT = 1 / 200;
     function step(b: Ball) {
+      const p = b.p, v = b.v;
       // RK2 midpoint × 3 substeps per frame ≈ real-time flight
       for (let i = 0; i < 3; i++) {
-        const a1 = accel(b.v, b.w);
-        const vm: V3 = [b.v[0] + a1[0] * DT * 0.5, b.v[1] + a1[1] * DT * 0.5, b.v[2] + a1[2] * DT * 0.5];
-        const a2 = accel(vm, b.w);
-        const nz = b.p[2] + vm[2] * DT;
-        if (nz <= 0 && b.p[2] > 0) {
-          const f = b.p[2] / (b.p[2] - nz);
-          b.p = [b.p[0] + vm[0] * DT * f, b.p[1] + vm[1] * DT * f, 0];
+        accel(v, b.w, a1);
+        vm[0] = v[0] + a1[0] * DT * 0.5; vm[1] = v[1] + a1[1] * DT * 0.5; vm[2] = v[2] + a1[2] * DT * 0.5;
+        accel(vm, b.w, a2);
+        const nz = p[2] + vm[2] * DT;
+        if (nz <= 0 && p[2] > 0) {
+          const f = p[2] / (p[2] - nz);
+          p[0] = p[0] + vm[0] * DT * f; p[1] = p[1] + vm[1] * DT * f; p[2] = 0;
           land(b);
           return;
         }
-        b.p = [b.p[0] + vm[0] * DT, b.p[1] + vm[1] * DT, nz];
-        b.v = [b.v[0] + a2[0] * DT, b.v[1] + a2[1] * DT, b.v[2] + a2[2] * DT];
+        p[0] = p[0] + vm[0] * DT; p[1] = p[1] + vm[1] * DT; p[2] = nz;
+        v[0] = v[0] + a2[0] * DT; v[1] = v[1] + a2[1] * DT; v[2] = v[2] + a2[2] * DT;
       }
-      if (b.p[2] > apex) apex = b.p[2];
-      b.trail.push([...b.p] as V3);
-      if (b.trail.length > 110) b.trail.shift();
-      if (b.p[0] > 40 || Math.abs(b.p[1]) > 20) { b.live = false; b.wait = 30; } // safety
+      if (p[2] > apex) apex = p[2];
+      pushTrail(b);
+      if (p[0] > 40 || Math.abs(p[1]) > 20) { b.live = false; b.wait = 30; } // safety
     }
 
     // ---- drawing ----
-    function chalk(alpha: number, width: number) {
-      ctx!.strokeStyle = `rgba(29, 34, 27, ${alpha})`;
-      ctx!.lineWidth = width;
-    }
-
     function drawCourt() {
+      const c = ctx!;
       // depth-fogged chalk lines: nearer lines brighter
-      for (const [a, b] of segs) {
-        const [x1, y1, d1] = project(a);
-        const [x2, y2, d2] = project(b);
-        const fog = Math.max(0.1, Math.min(0.45, 9.5 / ((d1 + d2) / 2)));
-        chalk(fog, 1.3);
-        ctx!.beginPath(); ctx!.moveTo(x1, y1); ctx!.lineTo(x2, y2); ctx!.stroke();
+      c.strokeStyle = "rgb(29, 34, 27)";
+      c.lineWidth = 1.3;
+      for (let i = 0; i < segs.length; i += 6) {
+        project(segs[i], segs[i + 1], segs[i + 2]);
+        const x1 = PX, y1 = PY, d1 = PD;
+        project(segs[i + 3], segs[i + 4], segs[i + 5]);
+        c.globalAlpha = Math.max(0.1, Math.min(0.45, 9.5 / ((d1 + PD) / 2)));
+        c.beginPath(); c.moveTo(x1, y1); c.lineTo(PX, PY); c.stroke();
       }
       // net: top cord, band posts, mesh verticals
-      const [nx1, ny1] = project([NET_X, -DOUBLES_HALF - 0.3, NET_H]);
-      const [nx2, ny2] = project([NET_X, DOUBLES_HALF + 0.3, NET_H]);
-      chalk(0.5, 1.6);
-      ctx!.beginPath(); ctx!.moveTo(nx1, ny1); ctx!.lineTo(nx2, ny2); ctx!.stroke();
-      chalk(0.16, 1);
+      project(NET_X, -DOUBLES_HALF - 0.3, NET_H);
+      const nx1 = PX, ny1 = PY;
+      project(NET_X, DOUBLES_HALF + 0.3, NET_H);
+      c.globalAlpha = 0.5; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(nx1, ny1); c.lineTo(PX, PY); c.stroke();
+      // the mesh verticals never overlap each other: one path, one stroke
+      c.globalAlpha = 0.16; c.lineWidth = 1;
+      c.beginPath();
       for (let y = -5; y <= 5; y += 1.25) {
-        const [tx, ty] = project([NET_X, y, NET_H]);
-        const [bx, by] = project([NET_X, y, 0]);
-        ctx!.beginPath(); ctx!.moveTo(tx, ty); ctx!.lineTo(bx, by); ctx!.stroke();
+        project(NET_X, y, NET_H);
+        c.moveTo(PX, PY);
+        project(NET_X, y, 0);
+        c.lineTo(PX, PY);
       }
+      c.stroke();
+      c.globalAlpha = 1;
     }
 
-    function drawMarks() {
-      for (const m of marks) {
-        m.age += 1;
+    function drawMarks(ticks: number) {
+      const c = ctx!;
+      let fill = "";
+      for (let i = 0; i < marks.length; i++) {
+        const m = marks[i];
+        m.age += ticks;
         const fade = Math.max(0, 1 - m.age / 1400);
         if (fade <= 0) continue;
-        const [x, y, d] = project([m.x, m.y, 0]);
-        const r = Math.max(1.4, 26 / d);
-        ctx!.fillStyle = m.in
-          ? `rgba(23, 127, 63, ${0.5 * fade})`
-          : `rgba(194, 62, 31, ${0.5 * fade})`;
-        ctx!.beginPath(); ctx!.ellipse(x, y, r, r * 0.45, 0, 0, Math.PI * 2); ctx!.fill();
+        project(m.x, m.y, 0);
+        const r = Math.max(1.4, 26 / PD);
+        const f = m.in ? "rgb(23, 127, 63)" : "rgb(194, 62, 31)";
+        if (f !== fill) { c.fillStyle = f; fill = f; }
+        c.globalAlpha = 0.5 * fade;
+        c.beginPath(); c.ellipse(PX, PY, r, r * 0.45, 0, 0, Math.PI * 2); c.fill();
       }
+      c.lineWidth = 1.4;
       for (let i = ripples.length - 1; i >= 0; i--) {
         const rp = ripples[i];
-        rp.t += 0.028;
-        if (rp.t >= 1) { ripples.splice(i, 1); continue; }
-        const [x, y, d] = project([rp.x, rp.y, 0]);
-        const rr = (rp.t * 130) / (d * 0.55);
-        ctx!.strokeStyle = rp.in
-          ? `rgba(23, 127, 63, ${0.5 * (1 - rp.t)})`
-          : `rgba(194, 62, 31, ${0.45 * (1 - rp.t)})`;
-        ctx!.lineWidth = 1.4;
-        ctx!.beginPath(); ctx!.ellipse(x, y, rr, rr * 0.45, 0, 0, Math.PI * 2); ctx!.stroke();
+        if (ticks) {
+          rp.t += 0.028 * ticks;
+          if (rp.t >= 1) { ripples.splice(i, 1); continue; }
+        }
+        project(rp.x, rp.y, 0);
+        const rr = (rp.t * 130) / (PD * 0.55);
+        c.strokeStyle = rp.in ? "rgb(23, 127, 63)" : "rgb(194, 62, 31)";
+        c.globalAlpha = (rp.in ? 0.5 : 0.45) * (1 - rp.t);
+        c.beginPath(); c.ellipse(PX, PY, rr, rr * 0.45, 0, 0, Math.PI * 2); c.stroke();
       }
+      c.globalAlpha = 1;
     }
 
     function drawBall(b: Ball) {
-      // trail — glow pass then core pass
-      if (b.trail.length > 2) {
-        for (const pass of [
-          { w: 5, a: 0.05 },
-          { w: 1.6, a: 0.5 },
-        ]) {
-          ctx!.lineWidth = pass.w;
-          ctx!.beginPath();
-          for (let i = 0; i < b.trail.length; i++) {
-            const [x, y] = project(b.trail[i]);
-            if (i === 0) ctx!.moveTo(x, y); else ctx!.lineTo(x, y);
-          }
-          ctx!.strokeStyle = `rgba(133, 154, 22, ${pass.a})`;
-          ctx!.stroke();
+      const c = ctx!;
+      // trail — glow pass then core pass, from one projection of the points
+      const n = b.tLen;
+      if (n > 2) {
+        for (let i = 0; i < n; i++) {
+          const k = ((b.tStart + i) % TRAIL_MAX) * 3;
+          project(b.trail[k], b.trail[k + 1], b.trail[k + 2]);
+          trailXY[i * 2] = PX; trailXY[i * 2 + 1] = PY;
         }
+        c.strokeStyle = "rgb(133, 154, 22)";
+        for (let pass = 0; pass < 2; pass++) {
+          c.lineWidth = pass === 0 ? 5 : 1.6;
+          c.globalAlpha = pass === 0 ? 0.05 : 0.5;
+          c.beginPath();
+          c.moveTo(trailXY[0], trailXY[1]);
+          for (let i = 1; i < n; i++) c.lineTo(trailXY[i * 2], trailXY[i * 2 + 1]);
+          c.stroke();
+        }
+        c.globalAlpha = 1;
       }
       if (!b.live) return;
-      const [x, y, d] = project(b.p);
-      const r = Math.max(2, 42 / d);
+      project(b.p[0], b.p[1], b.p[2]);
+      const x = PX, y = PY;
+      const r = Math.max(2, 42 / PD);
       // ground shadow
-      const [sx, sy, sd] = project([b.p[0], b.p[1], 0]);
-      ctx!.fillStyle = `rgba(0,0,0,${Math.min(0.4, 3 / sd + b.p[2] * -0.02 + 0.25)})`;
-      ctx!.beginPath(); ctx!.ellipse(sx, sy, r * 0.9, r * 0.4, 0, 0, Math.PI * 2); ctx!.fill();
-      // ball with glow
-      const g = ctx!.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r * 2.4);
-      g.addColorStop(0, "rgba(222, 244, 80, 1)");
-      g.addColorStop(0.4, "rgba(174, 199, 32, 0.95)");
-      g.addColorStop(1, "rgba(174, 199, 32, 0)");
-      ctx!.fillStyle = g;
-      ctx!.beginPath(); ctx!.arc(x, y, r * 2.4, 0, Math.PI * 2); ctx!.fill();
+      project(b.p[0], b.p[1], 0);
+      c.fillStyle = "rgb(0, 0, 0)";
+      c.globalAlpha = Math.max(0, Math.min(0.4, 3 / PD + b.p[2] * -0.02 + 0.25));
+      c.beginPath(); c.ellipse(PX, PY, r * 0.9, r * 0.4, 0, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = 1;
+      // ball with glow (pre-rendered radial gradient, scaled to this radius)
+      if (glow) c.drawImage(glow, x - r * 2.4, y - r * 2.4, r * 4.8, r * 4.8);
     }
 
-    function frame() {
-      if (!running || !visible) return;
-      cam.y += (cam.ty - cam.y) * 0.045;
-      cam.z += (cam.tz - cam.z) * 0.045;
+    // `ticks` = how many 60 Hz simulation steps to advance before drawing (0 = redraw only).
+    function paint(ticks: number) {
       ctx!.clearRect(0, 0, W, H);
       drawCourt();
-      drawMarks();
+      drawMarks(ticks);
       for (const b of balls) {
-        if (b.live) step(b);
-        else if (--b.wait <= 0) launch(b);
+        for (let t = 0; t < ticks; t++) {
+          if (b.live) step(b);
+          else if (--b.wait <= 0) launch(b);
+        }
         drawBall(b);
       }
+    }
+
+    // ---- pointer: the handler stores numbers; the frame does the maths ----
+    // hero box in page coordinates (unaffected by scrolling)
+    const box = { top: 0, left: 0, w: 1, h: 1 };
+    let ptrX = 0, ptrY = 0, ptrDirty = false;
+    function setBox(r: DOMRectReadOnly) {
+      box.left = r.left + window.scrollX; box.top = r.top + window.scrollY;
+      box.w = r.width || 1; box.h = r.height || 1;
+    }
+    function applyPointer() {
+      if (!ptrDirty) return;
+      ptrDirty = false;
+      if (ptrY < box.top || ptrY > box.top + box.h) { cam.ty = 0; cam.tz = 2.6; return; }
+      const px = (ptrX - box.left) / box.w - 0.5;
+      const py = (ptrY - box.top) / box.h - 0.5;
+      cam.ty = px * 2.4;
+      cam.tz = 2.6 - py * 0.9;
+    }
+
+    // The sim is tuned for one step per 60 Hz frame. Drive it from a fixed 60 Hz
+    // clock so 120/144 Hz screens don't play it at 2x speed; frames with no due
+    // step skip the redraw since nothing moved. The 1 ms slack absorbs frame
+    // jitter on 60 Hz displays so they still get exactly one step per frame.
+    const TICK = 1000 / 60;
+    let last = 0, acc = 0;
+    function frame(now: number) {
+      raf = 0;
+      if (!alive || !visible || document.hidden) { last = 0; return; }
+      if (!last) last = now - TICK;
+      acc = Math.min(acc + (now - last), TICK * 4); // after a stall, catch up at most 4 steps
+      last = now;
+      let ticks = 0;
+      while (acc >= TICK - 1) { acc -= TICK; ticks++; }
+      applyPointer();
+      for (let t = 0; t < ticks; t++) {
+        cam.y += (cam.ty - cam.y) * 0.045;
+        cam.z += (cam.tz - cam.z) * 0.045;
+      }
+      if (ticks) paint(ticks);
       raf = requestAnimationFrame(frame);
+    }
+    function kick() {
+      if (!raf && started && alive && visible && !document.hidden && !reduce) raf = requestAnimationFrame(frame);
     }
 
     // ---- static fallback: one precomputed trajectory, no animation ----
     function drawStatic() {
       ctx!.clearRect(0, 0, W, H);
       drawCourt();
-      const b: Ball = { p: [0.4, -1.2, 1.1], v: [0, 0, 0], w: [0, 190, 20], trail: [], live: true, wait: 0 };
+      const b = newBall(0);
+      b.p[0] = 0.4; b.p[1] = -1.2; b.p[2] = 1.1;
+      b.w[0] = 0; b.w[1] = 190; b.w[2] = 20;
+      b.live = true;
       const sp = 28, el = 9 * (Math.PI / 180);
-      b.v = [sp * Math.cos(el), 1.2, sp * Math.sin(el)];
+      b.v[0] = sp * Math.cos(el); b.v[1] = 1.2; b.v[2] = sp * Math.sin(el);
       for (let i = 0; i < 3000 && b.live; i++) step(b);
+      marks.length = 0; ripples.length = 0; // don't pile up marks on every resize
       for (let i = 0; i < 14; i++)
         marks.push({ x: 17 + (Math.random() - 0.5) * 3.4, y: -0.4 + (Math.random() - 0.5) * 2.6, in: Math.random() > 0.18, age: 0 });
-      drawMarks();
+      drawMarks(1);
       drawBall(b);
       if (vRef.current) vRef.current.textContent = (sp * 3.6).toFixed(0);
       if (spinRef.current) spinRef.current.textContent = "1814";
@@ -289,55 +399,62 @@ export default function PhysicsHero() {
       if (callRef.current) { callRef.current.textContent = "IN"; callRef.current.className = "lp-tele-v in"; }
     }
 
-    // ---- wiring ----
+    // ---- sizing: ResizeObserver runs after layout, so measuring here is free ----
     function resize() {
-      const node = wrapRef.current;
-      if (!node || !canvas) return;
-      const rect = node.getBoundingClientRect();
-      dpr = Math.min(2, window.devicePixelRatio || 1);
+      const rect = wrap!.getBoundingClientRect();
+      setBox(rect);
+      if (rect.width < 1 || rect.height < 1) return;
+      const native = window.devicePixelRatio || 1;
+      const hi = Math.min(2, native), lo = Math.min(1.5, native);
+      // full-bleed canvas: keep retina sharpness on normal screens, but cap the
+      // pixel count on very large ones (fill cost scales with device pixels)
+      dpr = Math.max(lo, Math.min(hi, Math.sqrt(BUDGET_PX / (rect.width * rect.height))));
       W = rect.width; H = rect.height;
-      canvas.width = Math.round(W * dpr);
-      canvas.height = Math.round(H * dpr);
+      FL = W * 0.78;
+      canvas!.width = Math.round(W * dpr);
+      canvas!.height = Math.round(H * dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (reduce) drawStatic();
+      if (dpr !== glowDpr) { glow = makeGlow(dpr); glowDpr = dpr; }
+      // resizing clears the buffer; repaint now so it never flashes empty
+      if (reduce) drawStatic(); else paint(0);
     }
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
-    resize();
+
+    if (reduce) return () => { alive = false; ro.disconnect(); };
 
     // the canvas layer is pointer-events:none so the hero CTAs stay clickable;
     // steer the camera from window-level moves instead
-    const onPointer = (e: PointerEvent) => {
-      const rect = wrap.getBoundingClientRect();
-      if (e.clientY < rect.top || e.clientY > rect.bottom) { cam.ty = 0; cam.tz = 2.6; return; }
-      const px = (e.clientX - rect.left) / rect.width - 0.5;
-      const py = (e.clientY - rect.top) / rect.height - 0.5;
-      cam.ty = px * 2.4;
-      cam.tz = 2.6 - py * 0.9;
-    };
+    const onPointer = (e: PointerEvent) => { ptrX = e.pageX; ptrY = e.pageY; ptrDirty = true; };
+    window.addEventListener("pointermove", onPointer, { passive: true });
 
-    if (!reduce) {
-      window.addEventListener("pointermove", onPointer, { passive: true });
-      const io = new IntersectionObserver(([en]) => {
-        visible = en.isIntersecting;
-        if (visible && running) { cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); }
-      }, { threshold: 0.02 });
-      io.observe(wrap);
-      const onVis = () => {
-        if (document.hidden) { running = false; cancelAnimationFrame(raf); }
-        else { running = true; if (visible) raf = requestAnimationFrame(frame); }
-      };
-      document.addEventListener("visibilitychange", onVis);
-      raf = requestAnimationFrame(frame);
-      return () => {
-        running = false;
-        cancelAnimationFrame(raf);
-        ro.disconnect(); io.disconnect();
-        window.removeEventListener("pointermove", onPointer);
-        document.removeEventListener("visibilitychange", onVis);
-      };
-    }
-    return () => ro.disconnect();
+    const io = new IntersectionObserver(([en]) => {
+      setBox(en.boundingClientRect); // free, fresh rect from the observer
+      visible = en.isIntersecting;
+      if (visible) kick(); else { cancelAnimationFrame(raf); raf = 0; last = 0; }
+    }, { threshold: 0.02 });
+    io.observe(wrap);
+
+    const onVis = () => {
+      if (document.hidden) { cancelAnimationFrame(raf); raf = 0; last = 0; }
+      else kick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+
+    // start the sim once the main thread is free after hydration, so the CTAs
+    // respond first; the court itself was already painted by the resize above
+    const start = () => { started = true; kick(); };
+    const hasRic = typeof window.requestIdleCallback === "function"; // Safari lacks it
+    const idle = hasRic ? window.requestIdleCallback(start, { timeout: 400 }) : window.setTimeout(start, 80);
+
+    return () => {
+      alive = false;
+      cancelAnimationFrame(raf);
+      if (hasRic) window.cancelIdleCallback(idle); else window.clearTimeout(idle);
+      ro.disconnect(); io.disconnect();
+      window.removeEventListener("pointermove", onPointer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   return (

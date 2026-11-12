@@ -17,7 +17,16 @@ export default function ParentReportPage() {
   const scored = useMemo(() => report?.summaries.filter((s) => s.form_score !== null) ?? [], [report]);
   const average = scored.length ? Math.round(scored.reduce((n, s) => n + (s.form_score ?? 0), 0) / scored.length) : null;
 
-  if (loading) return <main className="container" style={{ paddingTop: 60 }}><h1 className="h1">Loading report...</h1></main>;
+  if (loading) {
+    // Same frame as the loaded report, so the page doesn't jump when it arrives.
+    return <main className="container report-shell" aria-busy="true">
+      <div className="report-mark">TOPSPIN LABS / PLAYER REPORT</div>
+      <h1 className="h1">Loading report…</h1>
+      <p className="lead" aria-hidden="true" style={{ minHeight: "1.6em" }} />
+      <div className="card skeleton" aria-hidden="true" style={{ minHeight: 90, marginBottom: 18 }} />
+      <div className="card skeleton" aria-hidden="true" style={{ minHeight: 220 }} />
+    </main>;
+  }
   if (!report) return <main className="container" style={{ paddingTop: 60 }}><h1 className="h1">Report unavailable</h1><p className="lead">This link may have expired or been removed.</p><Link className="btn" href="/">TopSpin home</Link></main>;
   return <main className="container report-shell">
     <div className="report-mark">TOPSPIN LABS / PLAYER REPORT</div>

@@ -31,7 +31,22 @@ export default function PublicProfile({ params }: { params: Promise<{ id: string
     return { count: rows.length, avg, best, topServe, scored: scored.reverse(), flaws };
   }, [rows]);
 
-  if (state === "loading") return <div style={{ padding: 40, maxWidth: 760, margin: "0 auto" }}>Loading…</div>;
+  // Same frame as the loaded profile, so the page doesn't jump when it arrives.
+  if (state === "loading") {
+    return (
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "40px 24px" }} aria-busy="true">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <Link href="/" className="brand-link"><span className="brand-dot" /><span className="brand-name">TopSpin</span></Link>
+          <Link href="/analyze" className="btn">Try it yourself</Link>
+        </div>
+        <div className="card skeleton" role="status" style={{ minHeight: 108, marginBottom: 18, color: "var(--ink-soft)" }}>Loading profile…</div>
+        <div className="grid grid-4" style={{ marginBottom: 18 }} aria-hidden="true">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="card skeleton" style={{ minHeight: 82 }} />)}
+        </div>
+        <div className="card skeleton" aria-hidden="true" style={{ minHeight: 190 }} />
+      </div>
+    );
+  }
   if (state === "private") {
     return (
       <div style={{ padding: 40, maxWidth: 640, margin: "0 auto" }}>

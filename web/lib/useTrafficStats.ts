@@ -17,9 +17,22 @@ let cache: TrafficStats | null = null;
 const subscribers = new Set<(s: TrafficStats | null) => void>();
 let timer: ReturnType<typeof setInterval> | null = null;
 
+// Shallow compare of the numeric fields: the 15s poll usually returns the same
+// figures, and handing every subscriber a fresh object each time would re-render
+// the landing marquee, count-up band and Insights for nothing. `generated_at`
+// is ignored: it changes on every response and nothing renders it.
+function sameStats(a: TrafficStats | null, b: TrafficStats): boolean {
+  if (!a) return false;
+  const keys = (Object.keys(b) as (keyof TrafficStats)[]).filter((k) => k !== "generated_at");
+  return keys.length === Object.keys(a).filter((k) => k !== "generated_at").length
+    && keys.every((k) => Object.is(a[k], b[k]));
+}
+
 async function refresh(): Promise<void> {
   try {
-    cache = await api.stats();
+    const next = await api.stats();
+    if (sameStats(cache, next)) return;
+    cache = next;
     for (const fn of subscribers) fn(cache);
   } catch {
     /* keep the last good value on a transient blip */

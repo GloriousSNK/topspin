@@ -51,26 +51,52 @@ html, body { max-width: 100vw; overflow-x: hidden; }
 
 body {
   background-color: var(--paper);
-  /* soft daylight: a pool of green and a pool of sun falling from above */
-  background-image:
-    radial-gradient(1100px 700px at 74% -12%, rgba(211, 233, 76, 0.10), transparent 60%),
-    radial-gradient(950px 640px at 10% -8%, rgba(23, 103, 58, 0.06), transparent 56%);
-  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  /* optimizeLegibility is slow on large display text; auto + kerning keeps the look */
+  text-rendering: auto;
+  font-kerning: normal;
 }
 
-/* paper grain — keeps the cream from feeling flat */
+/* soft daylight: a pool of green and a pool of sun falling from above.
+   Painted once on a fixed, composited layer instead of
+   `background-attachment: fixed`, which repaints the page on every scroll. */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1100px 700px at 74% -12%, rgba(211, 233, 76, 0.10), transparent 60%),
+    radial-gradient(950px 640px at 10% -8%, rgba(23, 103, 58, 0.06), transparent 56%);
+  transform: translateZ(0);
+}
+
+/* paper grain — keeps the cream from feeling flat. Viewport-sized, tiled from
+   the 240px noise cell, rasterised once on its own layer and only composited
+   while scrolling. */
 body::after {
   content: "";
-  position: fixed; inset: -50%;
-  width: 200%; height: 200%;
+  position: fixed; inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  background-size: 240px 240px;
+  background-repeat: repeat;
   opacity: 0.032;
   pointer-events: none;
   z-index: 3;
+  transform: translateZ(0);
+}
+
+/* ---------------- interaction feel ----------------
+   No 300ms double-tap wait and no grey tap flash on controls that draw their
+   own press state; buttons don't start text selections on long-press. */
+:where(a, button, summary, label, select, [role="button"]) { touch-action: manipulation; }
+:where(.btn, .icon-btn, .chip, .hamburger, .star-btn, .analysis-title, .nav a, .navlinks > a,
+       .nav-menu-trigger, .nav-popover a, .nav-account, .mobile-panel a, .roster-row, .batch-row,
+       .lift, .brand-link, .dropzone, a .card) { -webkit-tap-highlight-color: transparent; }
+:where(.btn, .icon-btn, .chip, .hamburger, .star-btn, .nav-menu-trigger, .analysis-title) {
+  -webkit-user-select: none; user-select: none;
 }
 
 @theme inline {
@@ -118,9 +144,10 @@ body::after {
   padding: 10px 12px; border-radius: 10px;
   color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 500;
   border: 1px solid transparent;
-  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+  transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
 }
 .nav a:hover { border-color: var(--line); background: var(--paper-2); }
+.nav a:active { background: var(--paper-2); border-color: rgba(29,34,27,0.28); transition-duration: 0s; }
 .nav a.active { background: rgba(23, 103, 58, 0.08); border-color: var(--line-hot); color: var(--green); }
 .nav-icon { width: 18px; text-align: center; }
 
@@ -131,9 +158,12 @@ body::after {
   border-radius: var(--radius);
   padding: 22px;
   box-shadow: var(--shadow-posh);
-  transition: border-color 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+  transition: border-color 0.15s var(--ease), transform 0.15s var(--ease);
 }
-a:hover .card { border-color: rgba(29,34,27,0.3); transform: translateY(-2px); }
+a:hover .card { border-color: rgba(29,34,27,0.3); }
+/* lifts only where hover is real — on touch a tapped card would stay raised */
+@media (hover: hover) { a:hover .card { transform: translateY(-2px); } }
+a:active .card { transform: translateY(0); transition-duration: 70ms; }
 
 .card-title {
   font-family: var(--font-geist-mono), monospace;
@@ -150,7 +180,7 @@ a:hover .card { border-color: rgba(29,34,27,0.3); transform: translateY(-2px); }
 
 .h1 { font-family: var(--font-display), Georgia, serif; font-size: clamp(30px, 4.4vw, 42px); font-weight: 500; letter-spacing: -0.02em; margin-bottom: 10px; line-height: 1.06; }
 
-.subcard { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--paper); transition: border-color 0.2s var(--ease); }
+.subcard { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--paper); transition: border-color 0.15s var(--ease); }
 .subcard:hover { border-color: rgba(29,34,27,0.28); }
 .acct-perks { background: var(--paper-2); }
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -164,25 +194,45 @@ a:hover .card { border-color: rgba(29,34,27,0.3); transform: translateY(-2px); }
 
 /* ---------------- controls ---------------- */
 .btn {
+  position: relative;
   display: inline-flex; align-items: center; gap: 8px;
   background: var(--green);
   color: #fffef8;
   border: 1px solid transparent; border-radius: 10px; padding: 10px 18px;
   font-weight: 600; font-size: 14px; cursor: pointer;
   box-shadow: 0 6px 18px -8px rgba(17, 77, 43, 0.5);
-  transition: transform 0.2s var(--ease), box-shadow 0.3s var(--ease), background 0.2s var(--ease);
+  /* only composited / cheap properties animate; the press uses the
+     individual `scale` property so it also works on Magnetic buttons,
+     whose inline style owns `transform` */
+  transition: transform 0.15s var(--ease), scale 0.14s var(--ease),
+              background-color 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
 }
-.btn:hover { transform: translateY(-1px); background: var(--green-deep); box-shadow: 0 10px 26px -8px rgba(17, 77, 43, 0.55); }
-.btn:active { transform: translateY(0); box-shadow: 0 4px 12px -6px rgba(17, 77, 43, 0.5); }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+/* the deeper hover shadow lives on a pseudo-element and fades in by opacity,
+   so hovering never repaints a box-shadow frame by frame */
+.btn::after {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 10px 26px -8px rgba(17, 77, 43, 0.4);
+  opacity: 0; transition: opacity 0.15s var(--ease);
+}
+.btn:hover { background: var(--green-deep); }
+@media (hover: hover) {
+  .btn:hover { transform: translateY(-1px); }
+  .btn:hover::after { opacity: 1; }
+}
+.btn:active { transform: translateY(0); scale: 0.97; transition-duration: 70ms; }
+.btn:active::after { opacity: 0; transition-duration: 70ms; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; scale: none; box-shadow: none; }
+.btn:disabled::after { content: none; }
 .btn-ghost {
   background: transparent; color: var(--ink);
   border: 1px solid var(--line);
   box-shadow: none;
 }
 .btn-ghost:hover { background: rgba(29,34,27,0.04); border-color: rgba(29,34,27,0.32); box-shadow: none; }
+.btn-ghost:active { background: rgba(29,34,27,0.07); }
 .btn-danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger), transparent 45%); box-shadow: none; }
 .btn-danger:hover { background: color-mix(in srgb, var(--danger), transparent 92%); border-color: var(--danger); box-shadow: none; }
+.btn-ghost::after, .btn-danger::after { content: none; }
 
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-value { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; color: var(--ink); }
@@ -203,9 +253,11 @@ a:hover .card { border-color: rgba(29,34,27,0.3); transform: translateY(-2px); }
   width: 28px; height: 28px; padding: 0; font-size: 13px; line-height: 1;
   background: transparent; color: var(--ink); border: 1px solid var(--line);
   border-radius: 8px; cursor: pointer; flex-shrink: 0;
-  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+  transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease), scale 0.14s var(--ease);
 }
 .icon-btn:hover { background: rgba(29,34,27,0.05); border-color: rgba(29,34,27,0.32); }
+.icon-btn:active { background: rgba(29,34,27,0.08); scale: 0.92; transition-duration: 70ms; }
+.icon-btn:disabled { scale: none; }
 
 .label { font-size: 12px; color: var(--ink-soft); display: block; margin-bottom: 6px; font-weight: 500; }
 .range { width: 100%; accent-color: var(--green); }
@@ -228,7 +280,7 @@ table.data td { padding: 11px 10px; border-bottom: 1px solid var(--line-soft); }
 .select {
   background: var(--card); color: var(--ink); border: 1px solid var(--line);
   border-radius: 8px; padding: 8px 12px; font-size: 14px; font-weight: 500;
-  transition: border-color 0.2s var(--ease);
+  transition: border-color 0.15s var(--ease);
 }
 .select:hover { border-color: rgba(29,34,27,0.32); }
 select.select { text-transform: capitalize; }
@@ -236,14 +288,16 @@ select.select { text-transform: capitalize; }
 .dropzone {
   border: 1.5px dashed rgba(29,34,27,0.3); border-radius: var(--radius); padding: 44px;
   text-align: center; color: var(--ink-soft); cursor: pointer; background: var(--paper);
-  transition: border-color 0.25s var(--ease), background 0.25s var(--ease), color 0.25s var(--ease);
+  transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease), color 0.15s var(--ease);
 }
 .dropzone:hover, .dropzone.drag { border-color: var(--green); background: rgba(23, 103, 58, 0.05); color: var(--ink); }
 
 /* ============================================================
    Website chrome — navbar, footer, sections
    ============================================================ */
-html { scroll-behavior: smooth; }
+/* smooth only for in-page anchor jumps; Next suspends it during route
+   changes via data-scroll-behavior="smooth" on <html>. */
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 
 .site { min-height: 100vh; display: flex; flex-direction: column; position: relative; z-index: 1; }
 .container { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 28px; }
@@ -258,9 +312,9 @@ html { scroll-behavior: smooth; }
 /* --- top navbar --- */
 .navbar {
   position: sticky; top: 0; z-index: 50;
-  background: rgba(247, 245, 238, 0.8);
-  backdrop-filter: blur(16px) saturate(1.3);
-  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  /* near-opaque instead of backdrop-filter: a sticky blur re-samples and
+     re-blurs everything underneath on every scroll frame */
+  background: rgba(247, 245, 238, 0.95);
   border-bottom: 1px solid var(--line-soft);
 }
 .navbar-inner { display: flex; align-items: center; gap: 18px; height: 64px; }
@@ -270,21 +324,22 @@ html { scroll-behavior: smooth; }
   color: var(--ink-soft); text-decoration: none; font-size: 13.5px; font-weight: 500;
   min-height: 44px; padding: 0 12px; border-radius: 8px; border: 0; background: transparent;
   display: inline-flex; align-items: center; cursor: pointer;
-  transition: color 0.2s var(--ease), background 0.2s var(--ease);
+  transition: color 0.15s var(--ease), background-color 0.15s var(--ease);
 }
 .navlinks > a::after, .nav-menu-trigger::after {
   content: ""; position: absolute; left: 12px; right: 12px; bottom: 2px; height: 1.5px;
   background: var(--green); border-radius: 2px;
   transform: scaleX(0); transform-origin: left;
-  transition: transform 0.3s var(--ease);
+  transition: transform 0.2s var(--ease);
 }
 .navlinks > a:hover, .nav-menu-trigger:hover { color: var(--ink); background: rgba(29,34,27,0.035); }
+.navlinks > a:active, .nav-menu-trigger:active { background: rgba(29,34,27,0.07); transition-duration: 0s; }
 .navlinks > a.active, .nav-menu-trigger.active { color: var(--green); }
 .navlinks > a.active::after, .nav-menu-trigger.active::after { transform: scaleX(1); }
 .nav-spacer { flex: 1; }
 .nav-more { position: relative; }
 .nav-menu-trigger { gap: 8px; font-family: inherit; }
-.nav-chevron { width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform 0.2s var(--ease); }
+.nav-chevron { width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform 0.15s var(--ease); }
 .nav-menu-trigger[aria-expanded="true"] .nav-chevron { transform: rotate(225deg) translate(-1px, -1px); }
 .nav-popover {
   position: absolute; top: calc(100% + 9px); right: 0; width: 440px; z-index: 60;
@@ -302,6 +357,7 @@ html { scroll-behavior: smooth; }
   color: var(--ink); text-decoration: none; border: 1px solid transparent;
 }
 .nav-popover a:hover, .nav-popover a.active { background: var(--paper-2); border-color: var(--line-soft); }
+.nav-popover a:active { background: var(--paper-2); border-color: var(--line); }
 .nav-popover a strong { font-size: 13px; font-weight: 650; }
 .nav-popover a span { font-size: 11.5px; line-height: 1.35; color: var(--ink-soft); }
 
@@ -310,9 +366,10 @@ html { scroll-behavior: smooth; }
   color: var(--ink); border: 1px solid var(--line); border-radius: 999px;
   min-height: 44px; padding: 4px 14px 4px 4px; background: var(--card);
   font-weight: 500; font-size: 13px;
-  transition: border-color 0.2s var(--ease);
+  transition: border-color 0.15s var(--ease), scale 0.14s var(--ease);
 }
 .nav-account:hover { border-color: rgba(29,34,27,0.32); }
+.nav-account:active { scale: 0.97; transition-duration: 70ms; }
 .nav-account.on { border-color: var(--line-hot); }
 .nav-avatar {
   width: 28px; height: 28px; border-radius: 50%; background: var(--accent);
@@ -336,7 +393,7 @@ html { scroll-behavior: smooth; }
 .footer-lockup { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .footer-brand p { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
 .footer-col h5 { font-family: var(--font-geist-mono), monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; color: var(--ink-soft); font-weight: 600; margin-bottom: 4px; }
-.footer-col a { color: var(--ink-soft); text-decoration: none; font-size: 13.5px; transition: color 0.2s var(--ease); }
+.footer-col a { color: var(--ink-soft); text-decoration: none; font-size: 13.5px; transition: color 0.15s var(--ease); }
 .footer-col a:hover { color: var(--green); }
 .footer-base { border-top: 1px solid var(--line-soft); padding: 16px 0; font-size: 12px; color: var(--ink-soft); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 
@@ -444,8 +501,16 @@ html { scroll-behavior: smooth; }
 @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
 @media (prefers-reduced-motion: reduce) { .float-slow { animation: none; } }
 
-.lift { transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease); }
-.lift:hover { transform: translateY(-3px); border-color: rgba(29,34,27,0.3); box-shadow: 0 26px 48px -22px rgba(29, 34, 27, 0.3); }
+/* .lift sits on cards/rows whose children may be absolutely positioned, so the
+   shadow stays on the element (no pseudo/position change) but swaps in 150ms
+   on a single hovered element; the lift itself is a composited transform. */
+.lift { transition: transform 0.15s var(--ease), scale 0.14s var(--ease), border-color 0.15s var(--ease), box-shadow 0.15s var(--ease); }
+.lift:hover { border-color: rgba(29,34,27,0.3); }
+@media (hover: hover) {
+  .lift:hover { transform: translateY(-3px); box-shadow: 0 26px 48px -22px rgba(29, 34, 27, 0.3); }
+}
+.lift:active { transform: translateY(0); scale: 0.99; transition-duration: 70ms; }
+.lift:disabled { transform: none; scale: none; }
 
 /* ============================================================
    Mobile navigation
@@ -455,16 +520,19 @@ html { scroll-behavior: smooth; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 44px; height: 44px; background: transparent; border: 1px solid var(--line);
   border-radius: 10px; cursor: pointer; gap: 4px; flex-direction: column;
+  transition: background-color 0.15s var(--ease), scale 0.14s var(--ease);
 }
-.hamburger span { width: 18px; height: 1.5px; background: var(--ink); border-radius: 2px; transition: transform 0.2s var(--ease), opacity 0.2s var(--ease); }
+.hamburger:active { background: rgba(29,34,27,0.06); scale: 0.94; transition-duration: 70ms; }
+.hamburger span { width: 18px; height: 1.5px; background: var(--ink); border-radius: 2px; transition: transform 0.18s var(--ease), opacity 0.18s var(--ease); }
 .hamburger.open span:nth-child(1) { transform: translateY(5.5px) rotate(45deg); }
 .hamburger.open span:nth-child(2) { opacity: 0; }
 .hamburger.open span:nth-child(3) { transform: translateY(-5.5px) rotate(-45deg); }
-.mobile-scrim { position: fixed; inset: 64px 0 0; z-index: 51; border: 0; background: rgba(18,48,30,0.16); backdrop-filter: blur(2px); }
+/* no backdrop-filter on the scrim/panel: a full-screen blur costs a big
+   offscreen pass per frame and was barely visible at these opacities */
+.mobile-scrim { position: fixed; inset: 64px 0 0; z-index: 51; border: 0; background: rgba(18,48,30,0.2); }
 .mobile-panel {
   position: fixed; left: 0; right: 0; top: 64px; z-index: 52;
-  background: rgba(247, 245, 238, 0.98);
-  backdrop-filter: blur(20px);
+  background: rgba(247, 245, 238, 0.99);
   border-bottom: 1px solid var(--line);
   max-height: calc(100dvh - 64px); overflow-y: auto; overscroll-behavior: contain;
   padding: 14px max(24px, env(safe-area-inset-right)) 20px max(24px, env(safe-area-inset-left));
@@ -481,7 +549,7 @@ html { scroll-behavior: smooth; }
   color: var(--ink); text-decoration: none; font-weight: 500; font-size: 15px;
   border: 1px solid transparent;
 }
-.mobile-panel a:hover, .mobile-panel a.active { border-color: var(--line); background: var(--paper-2); }
+.mobile-panel a:hover, .mobile-panel a.active, .mobile-panel a:active { border-color: var(--line); background: var(--paper-2); }
 .mobile-panel a small { margin-top: 2px; color: var(--ink-soft); font-size: 10.5px; font-weight: 450; line-height: 1.3; }
 .mobile-panel .mobile-account-link { align-items: center; margin-top: 14px; background: var(--green); color: #fffef8; border-color: transparent; font-weight: 650; }
 .mobile-panel .mobile-account-link:hover, .mobile-panel .mobile-account-link.active { background: var(--green-deep); color: #fffef8; border-color: transparent; }
@@ -547,9 +615,9 @@ html { scroll-behavior: smooth; }
 .lp-telemetry {
   position: relative;
   font-family: var(--font-geist-mono), monospace;
-  background: rgba(251, 248, 238, 0.78);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* opaque enough to read cleanly without backdrop-filter, which would
+     re-blur the 60fps sim canvas underneath on every frame */
+  background: rgba(251, 248, 238, 0.92);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 18px 20px 16px;
@@ -570,8 +638,16 @@ html { scroll-behavior: smooth; }
   font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
   color: var(--ink-soft); margin-bottom: 14px;
 }
-.lp-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 7px; animation: lp-pulse 1.6s ease-in-out infinite; }
-@keyframes lp-pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(23,103,58,0.4); } 50% { opacity: 0.55; box-shadow: 0 0 0 5px rgba(23,103,58,0); } }
+.lp-live-dot { position: relative; width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 7px; animation: lp-pulse 1.6s ease-in-out infinite; }
+/* the halo is a scaled ring (transform + opacity, compositor-only) rather
+   than an animated box-shadow that repaints every frame */
+.lp-live-dot::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: rgba(23,103,58,0.4);
+  animation: lp-halo 1.6s ease-in-out infinite;
+}
+@keyframes lp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes lp-halo { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(2.667); opacity: 0; } }
 .lp-telemetry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
 .lp-tele-item { display: flex; flex-direction: column; gap: 3px; }
 .lp-tele-k { font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); }
@@ -586,11 +662,13 @@ html { scroll-behavior: smooth; }
   background: rgba(29,34,27,0.15);
 }
 .lp-scroll-cue::after {
-  content: ""; position: absolute; left: 0; top: -50%; width: 100%; height: 50%;
+  content: ""; position: absolute; left: 0; top: 0; width: 100%; height: 50%;
   background: var(--green); border-radius: 2px;
+  transform: translateY(-100%);
   animation: lp-cue 1.8s var(--ease) infinite;
 }
-@keyframes lp-cue { 0% { top: -50%; } 70%, 100% { top: 110%; } }
+/* same travel as top:-50% → 110% of the track, but as a transform (no layout) */
+@keyframes lp-cue { 0% { transform: translateY(-100%); } 70%, 100% { transform: translateY(220%); } }
 
 @media (max-width: 920px) {
   .lp-hero-inner { grid-template-columns: 1fr; padding: 48px 0 52px; }
@@ -669,7 +747,7 @@ html { scroll-behavior: smooth; }
   font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
   border: 1px solid var(--line); border-radius: 8px; padding: 8px 13px;
   color: var(--ink); background: var(--card);
-  transition: border-color 0.25s var(--ease);
+  transition: border-color 0.15s var(--ease);
 }
 .lp-pipe-step:hover { border-color: var(--green); }
 .lp-pipe-arrow { color: var(--green); font-size: 13px; }
@@ -745,27 +823,31 @@ html { scroll-behavior: smooth; }
 /* ============================================================
    Motion system — reveals
    ============================================================ */
-[data-reveal] {
-  opacity: 0;
-  transform: translateY(26px);
-  transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
-  transition-delay: var(--rd, 0ms);
+/* Reveals are one-shot keyframe animations (opacity + transform only) with
+   `backwards` fill: they hold the hidden frame through their stagger delay and
+   then hand the element straight back to its own styles. Unlike the old
+   transition approach, nothing lingers afterwards — a revealed .card/.lift
+   keeps its own snappy hover transition instead of inheriting a 650ms,
+   delayed one. */
+[data-reveal] { opacity: 0; }
+[data-reveal].is-in {
+  opacity: 1;
+  animation: reveal-rise 0.42s var(--ease) calc(var(--rd, 0ms) * 0.6) backwards;
 }
-[data-reveal].is-in { opacity: 1; transform: none; }
+@keyframes reveal-rise { from { opacity: 0; transform: translateY(14px); } }
 
 /* AutoReveal: cards drift up as they enter, everywhere except the landing */
-.fx-pre {
-  opacity: 0; transform: translateY(16px);
-  transition: opacity 0.65s var(--ease), transform 0.65s var(--ease);
-  transition-delay: var(--fxd, 0ms);
+.fx-pre { opacity: 0; }
+.fx-pre.fx-in {
+  opacity: 1;
+  animation: fx-rise 0.26s var(--ease) var(--fxd, 0ms) backwards;
 }
-.fx-pre.fx-in { opacity: 1; transform: none; }
+@keyframes fx-rise { from { opacity: 0; transform: translateY(8px); } }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-reveal] { opacity: 1; transform: none; transition: none; }
+  [data-reveal], .fx-pre { opacity: 1; animation: none !important; }
   .lp-marquee { animation: none; flex-wrap: wrap; }
-  .lp-scroll-cue::after, .lp-live-dot { animation: none; }
-  html { scroll-behavior: auto; }
+  .lp-scroll-cue::after, .lp-live-dot, .lp-live-dot::after { animation: none; }
 }
 
 /* ============================================================
@@ -823,6 +905,11 @@ html { scroll-behavior: smooth; }
   .report-shell { padding-top: 40px; }
 }
 
+/* Loading placeholders: a soft opacity pulse (composited, no repaint). */
+.skeleton { animation: skeleton-pulse 1.4s ease-in-out infinite; box-shadow: none; }
+@keyframes skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
 /* Coach-managed student folders */
 .h1 em { font-style: italic; color: var(--green); }
 .back-link { color: var(--green); font-weight: 600; font-size: 13px; text-decoration: none; }
@@ -857,9 +944,10 @@ table.data .subject-select { min-width: 150px; padding: 5px 8px; font-size: 13px
   display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px;
   border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit;
   font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+  transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease), scale 0.14s var(--ease);
 }
 .chip:hover { border-color: rgba(29,34,27,0.32); }
+.chip:active { scale: 0.96; transition-duration: 70ms; }
 .chip.on { background: var(--accent); border-color: transparent; }
 .folder-heading { display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; margin: 12px 0 10px; }
 .folder-heading-actions { display: flex; gap: 8px; margin-left: auto; }
@@ -873,7 +961,7 @@ select.move-select, .move-select { margin-left: auto; text-transform: none; }
 .analysis-list { display: flex; flex-direction: column; gap: 10px; }
 .analysis-item {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 14px 16px; box-shadow: var(--shadow-sm); transition: border-color 0.2s var(--ease);
+  padding: 14px 16px; box-shadow: var(--shadow-sm); transition: border-color 0.15s var(--ease);
 }
 .analysis-item:hover { border-color: rgba(29,34,27,0.28); }
 .analysis-item.starred { border-left: 3px solid var(--accent-dim); }
@@ -889,8 +977,10 @@ select.move-select, .move-select { margin-left: auto; text-transform: none; }
   width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; padding: 0;
   background: transparent; border: 1px solid transparent; border-radius: 8px; cursor: pointer;
   font-size: 18px; line-height: 1; color: var(--ink-soft);
+  transition: border-color 0.15s var(--ease), scale 0.14s var(--ease);
 }
 .star-btn:hover { border-color: var(--line); }
+.star-btn:active { scale: 0.88; transition-duration: 70ms; }
 .star-btn.on { color: var(--warn); }
 .analysis-meta {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
@@ -917,19 +1007,21 @@ select.move-select, .move-select { margin-left: auto; text-transform: none; }
   position: fixed; z-index: 90; left: 50%; bottom: 22px; width: min(760px, calc(100vw - 32px));
   transform: translateX(-50%); display: grid; grid-template-columns: 96px 1fr auto auto;
   align-items: center; gap: 18px; padding: 15px 16px;
-  background: color-mix(in srgb, var(--card) 94%, transparent);
+  /* near-opaque, no backdrop-filter: this floats over scrolling content */
+  background: color-mix(in srgb, var(--card) 98%, transparent);
   border: 1px solid var(--line-hot); border-radius: 14px; box-shadow: 0 24px 70px -26px rgba(17,77,43,.55);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   animation: backend-enter .45s var(--ease) both;
 }
 .backend-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .backend-copy strong { font-family: var(--font-display), Georgia, serif; font-size: 18px; font-weight: 560; }
 .backend-copy span { color: var(--ink-soft); font-size: 12.5px; line-height: 1.45; }
 .backend-time { color: var(--green); font-size: 12px; min-width: 34px; }
-.backend-flight { position: relative; height: 42px; overflow: hidden; border-bottom: 1px solid var(--line-hot); }
+.backend-flight { position: relative; height: 42px; overflow: hidden; border-bottom: 1px solid var(--line-hot); container-type: size; }
 .backend-flight::before { content: ""; position: absolute; left: 50%; bottom: 0; height: 18px; border-left: 1px dashed var(--line); }
+/* the ball flies on transform (container-relative cqw/cqh, same path as the
+   old left/top percentages) so the loop never triggers layout */
 .backend-flight span, .backend-court span {
-  position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--accent);
+  position: absolute; left: 0; top: 0; width: 11px; height: 11px; border-radius: 50%; background: var(--accent);
   box-shadow: 0 3px 8px rgba(120,140,20,.35); animation: backend-ball 1.8s var(--ease) infinite;
 }
 .backend-panel {
@@ -939,15 +1031,15 @@ select.move-select, .move-select { margin-left: auto; text-transform: none; }
 }
 .backend-panel h2 { margin: 8px 0 10px; font-family: var(--font-display), Georgia, serif; font-size: clamp(25px, 3vw, 36px); font-weight: 520; }
 .backend-panel p { max-width: 48ch; margin: 0 0 16px; color: var(--ink-soft); line-height: 1.6; }
-.backend-court { position: relative; min-height: 150px; overflow: hidden; border: 1px solid rgba(255,255,255,.7); border-radius: 10px; background: var(--green); }
+.backend-court { position: relative; min-height: 150px; overflow: hidden; container-type: size; border: 1px solid rgba(255,255,255,.7); border-radius: 10px; background: var(--green); }
 .backend-court::before { content: ""; position: absolute; inset: 14px; border: 1px solid rgba(255,255,255,.72); background: linear-gradient(90deg, transparent 49.7%, rgba(255,255,255,.7) 50%, transparent 50.3%); }
 .backend-court::after { content: ""; position: absolute; left: 14px; right: 14px; top: 50%; border-top: 2px solid rgba(255,255,255,.82); }
-.backend-court span { left: 16%; top: 65%; animation-duration: 2.2s; }
+.backend-court span { transform: translate(16cqw, 65cqh); animation-duration: 2.2s; }
 @keyframes backend-enter { from { opacity: 0; transform: translate(-50%, 18px); } }
 @keyframes backend-ball {
-  0% { left: 6%; top: 72%; transform: scale(.8); }
-  48% { left: 50%; top: 12%; transform: scale(1); }
-  100% { left: 88%; top: 68%; transform: scale(.84); }
+  0% { transform: translate(6cqw, 72cqh) scale(.8); }
+  48% { transform: translate(50cqw, 12cqh) scale(1); }
+  100% { transform: translate(88cqw, 68cqh) scale(.84); }
 }
 @media (max-width: 680px) {
   .backend-banner { grid-template-columns: 62px 1fr auto; bottom: 12px; gap: 12px; }

@@ -6,18 +6,16 @@
 // coach id explicitly and re-checks the signed-in account after it returns, the
 // same as lib/history.ts, so an account switch mid-request can't leak rows.
 
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabaseLazy";
+import { isSignedInAs } from "./accountGuard";
 import type { PoseAnalysis } from "./pose";
 import {
   cleanName, summarizeFolders, subjectStudentId, studentSubject, ME,
   type StudentAnalysisRow, type StudentFolder, type StudentRow, type Subject,
 } from "./studentsLogic";
 
-async function matches(userId: string): Promise<boolean> {
-  if (!supabase || !userId) return false;
-  const { data, error } = await supabase.auth.getUser();
-  return !error && data.user?.id === userId;
-}
+// Local (no network) "still the same account?" check — see lib/accountGuard.ts.
+const matches = isSignedInAs;
 
 export type StudentsResult<T> = { ok: true; data: T } | { ok: false; error: "session" | "setup" | "failed" };
 
@@ -31,6 +29,7 @@ const ANALYSIS_COLUMNS =
   "id, student_id, created_at, title, stroke, form_score, serve_speed, flaws, joint_feedback, skeleton, starred, note";
 
 export async function listStudentFolders(userId: string): Promise<StudentsResult<StudentFolder[]>> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return { ok: false, error: "session" };
   const [students, stats] = await Promise.all([
     supabase.from("coach_students").select("id, name, note, created_at").eq("coach_id", userId).limit(500),
@@ -46,6 +45,7 @@ export async function listStudentFolders(userId: string): Promise<StudentsResult
 export async function getStudentFolder(
   userId: string, studentId: string,
 ): Promise<StudentsResult<{ student: StudentRow; analyses: StudentAnalysisRow[] } | null>> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return { ok: false, error: "session" };
   const [student, analyses] = await Promise.all([
     supabase.from("coach_students").select("id, name, note, created_at")
@@ -61,6 +61,7 @@ export async function getStudentFolder(
 }
 
 export async function addStudent(userId: string, rawName: string): Promise<StudentsResult<StudentRow>> {
+  const supabase = await getSupabase();
   const name = cleanName(rawName);
   if (!name) return { ok: false, error: "failed" };
   if (!supabase || !(await matches(userId))) return { ok: false, error: "session" };
@@ -73,12 +74,14 @@ export async function addStudent(userId: string, rawName: string): Promise<Stude
 async function updateOne(
   table: "coach_students" | "coach_student_analyses", userId: string, id: string, patch: Record<string, unknown>,
 ): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return false;
   const { data, error } = await supabase.from(table).update(patch).eq("id", id).eq("coach_id", userId).select("id");
   return !error && Array.isArray(data) && data.length === 1 && await matches(userId);
 }
 
 async function deleteOne(table: "coach_students" | "coach_student_analyses", userId: string, id: string): Promise<boolean> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return false;
   const { data, error } = await supabase.from(table).delete().eq("id", id).eq("coach_id", userId).select("id");
   return !error && Array.isArray(data) && data.length === 1 && await matches(userId);
@@ -121,6 +124,7 @@ export function deleteStudentAnalysis(userId: string, analysisId: string): Promi
 
 // Returns the new analysis id, or null.
 export async function saveStudentAnalysis(userId: string, studentId: string, a: PoseAnalysis): Promise<string | null> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return null;
   const { data, error } = await supabase.from("coach_student_analyses").insert({
     coach_id: userId,
@@ -140,12 +144,14 @@ export async function saveStudentAnalysis(userId: string, studentId: string, a: 
 export type Filed = { subject: Subject; id: string };
 
 export async function moveSessionToStudent(userId: string, sessionId: string, studentId: string): Promise<string | null> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return null;
   const { data, error } = await supabase.rpc("move_session_to_student", { p_session_id: sessionId, p_student_id: studentId });
   return error || typeof data !== "string" || !(await matches(userId)) ? null : data;
 }
 
 export async function moveAnalysisToMe(userId: string, analysisId: string): Promise<string | null> {
+  const supabase = await getSupabase();
   if (!supabase || !(await matches(userId))) return null;
   const { data, error } = await supabase.rpc("move_student_analysis_to_me", { p_analysis_id: analysisId });
   return error || typeof data !== "string" || !(await matches(userId)) ? null : data;

@@ -12,7 +12,18 @@ export default function SharePage({ params }: { params: Promise<{ id: string }> 
     getShare(id).then((d) => setData(d ?? "missing"));
   }, [id]);
 
-  if (data === null) return <div style={{ padding: 40 }}>Loading…</div>;
+  // Same frame as the loaded summary, so the page doesn't jump when it arrives.
+  if (data === null) {
+    return (
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "40px 24px" }} aria-busy="true">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <Link href="/" className="brand-link"><span className="brand-dot" /><span className="brand-name">TopSpin</span></Link>
+        </div>
+        <div className="card skeleton" role="status" style={{ minHeight: 120, color: "var(--ink-soft)" }}>Loading summary…</div>
+        <div className="card skeleton" aria-hidden="true" style={{ minHeight: 160, marginTop: 16 }} />
+      </div>
+    );
+  }
   if (data === "missing") {
     return (
       <div style={{ padding: 40, maxWidth: 640, margin: "0 auto" }}>

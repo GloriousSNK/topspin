@@ -8,6 +8,7 @@ import {
   createParentReport, getCoachPlayerHistory, getSharedAnalyses, saveCoachNote,
   type CoachAnalysisShare, type CoachPlayerHistory,
 } from "@/lib/coach";
+import PageSkeleton from "../../../_components/PageSkeleton";
 
 export default function CoachPlayerPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,16 +18,19 @@ export default function CoachPlayerPage() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [creatingReport, setCreatingReport] = useState(false);
+  const userId = user?.id ?? null;
 
+  // Keyed on the account id, so a token refresh doesn't refetch the player.
   useEffect(() => {
-    if (!user || !id) return;
+    if (!userId || !id) return;
     let alive = true;
-    Promise.all([getCoachPlayerHistory(user.id, id), getSharedAnalyses(user.id, id)]).then(([h, s]) => {
+    Promise.all([getCoachPlayerHistory(userId, id), getSharedAnalyses(userId, id)]).then(([h, s]) => {
       if (!alive) return;
       setHistory(h); setShares(s); setReady(true);
     }).catch(() => { if (alive) { setError("Couldn't load this player."); setReady(true); } });
     return () => { alive = false; };
-  }, [user, id]);
+  }, [userId, id]);
 
   const scores = useMemo(() => history?.summaries.filter((s) => s.form_score !== null) ?? [], [history]);
   const average = scores.length ? Math.round(scores.reduce((n, s) => n + (s.form_score ?? 0), 0) / scores.length) : null;
@@ -39,18 +43,24 @@ export default function CoachPlayerPage() {
   }
 
   async function report() {
-    if (!user || !history) return;
+    if (!user || !history || creatingReport) return;
+    setCreatingReport(true); setError(null);
     const reportId = await createParentReport(user.id, history.player_id, {
       playerName: history.display_name,
       coachName: user.email?.split("@")[0] ?? "Coach",
       createdAt: new Date().toISOString(),
       summaries: history.summaries.slice(0, 20),
-    });
+    }).catch(() => null);
+    setCreatingReport(false);
     if (reportId) setReportUrl(`${window.location.origin}/r/${reportId}`);
     else setError("Couldn't create the report.");
   }
 
-  if (loading || (user && !ready)) return <h1 className="h1">Player</h1>;
+  if (loading || (user && !ready)) {
+    return <PageSkeleton title="Player" lead="Summary history and the analyses this player chose to share."
+      backLink={<Link href="/coach" style={{ color: "var(--green)", fontWeight: 600, fontSize: 13 }}>← Roster</Link>}
+      stats={3} blocks={[150, 180]} />;
+  }
   if (!user) return <Message />;
   if (!history) return <Message text={error ?? "This player isn't in one of your squads."} />;
 
@@ -84,7 +94,7 @@ export default function CoachPlayerPage() {
         <div className="card-title">Parent report</div>
         <p style={{ color: "var(--ink-soft)", fontSize: 14, marginBottom: 12 }}>Create a private-by-link, 30-day snapshot with recent scores and practice.</p>
         {reportUrl ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><input className="select" readOnly value={reportUrl} style={{ flex: 1 }} /><button className="btn" onClick={() => navigator.clipboard.writeText(reportUrl)}>Copy link</button></div>
-          : <button className="btn" onClick={report}>Create parent report</button>}
+          : <button className="btn" onClick={report} disabled={creatingReport}>{creatingReport ? "Creating report…" : "Create parent report"}</button>}
         {error && <div role="alert" style={{ color: "var(--danger)", marginTop: 10 }}>{error}</div>}
       </div>
     </div>

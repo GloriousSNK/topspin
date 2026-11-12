@@ -51,10 +51,25 @@ export interface PoseAnalysis {
 
 type Pt = { x: number; y: number; z: number; visibility?: number };
 
-let _landmarker: PoseLandmarkerT | null = null;
+// One shared, memoised load: a warm-up started on /analyze and the first real
+// analysis await the same promise instead of initialising the model twice. A
+// failed load is forgotten so the next attempt retries.
+let _landmarker: Promise<PoseLandmarkerT> | null = null;
 
-async function getLandmarker(): Promise<PoseLandmarkerT> {
-  if (_landmarker) return _landmarker;
+function getLandmarker(): Promise<PoseLandmarkerT> {
+  if (!_landmarker) {
+    _landmarker = createLandmarker();
+    _landmarker.catch(() => { _landmarker = null; });
+  }
+  return _landmarker;
+}
+
+/** Start downloading + initialising the pose model ahead of the first clip. Never throws. */
+export function warmPoseModel(): void {
+  getLandmarker().catch(() => { /* the real analysis reports load errors */ });
+}
+
+async function createLandmarker(): Promise<PoseLandmarkerT> {
   const { FilesetResolver, PoseLandmarker } = await import("@mediapipe/tasks-vision");
   const vision = await FilesetResolver.forVisionTasks(
     `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`,
@@ -72,11 +87,10 @@ async function getLandmarker(): Promise<PoseLandmarkerT> {
       minTrackingConfidence: 0.2,
     });
   try {
-    _landmarker = await make("GPU");
+    return await make("GPU");
   } catch {
-    _landmarker = await make("CPU"); // fall back if WebGL delegate is unavailable
+    return await make("CPU"); // fall back if WebGL delegate is unavailable
   }
-  return _landmarker;
 }
 
 function angle(a: Pt, b: Pt, c: Pt): number {
