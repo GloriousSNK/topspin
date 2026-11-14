@@ -12,7 +12,7 @@ import { saveLocalSession } from "@/lib/localHistory";
 import { recallSubject, refile, rememberSubject, saveStudentAnalysis, type Filed } from "@/lib/students";
 import { ME, studentSubject, subjectStudentId, type Subject } from "@/lib/studentsLogic";
 import SubjectPicker, { useStudentFolders } from "@/components/SubjectPicker";
-import ContactSkeleton from "@/components/ContactSkeleton";
+import PoseVideo from "@/components/PoseVideo";
 import { usePoseWarmup } from "@/lib/usePoseWarmup";
 
 const STROKES = ["auto", "forehand", "backhand", "serve", "volley", "slice"];
@@ -24,6 +24,10 @@ export default function Analyze() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
+  // Local object URL for the clip, so the result can play it back with the
+  // skeleton drawn on top. It never leaves the browser.
+  const [clipUrl, setClipUrl] = useState<string | null>(null);
+  useEffect(() => () => { if (clipUrl) URL.revokeObjectURL(clipUrl); }, [clipUrl]);
   const [result, setResult] = useState<PoseAnalysis | null>(null);
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [drag, setDrag] = useState(false);
@@ -55,7 +59,7 @@ export default function Analyze() {
     const previous = activeUserId.current;
     activeUserId.current = user?.id ?? null;
     if (previous && previous !== activeUserId.current) {
-      setResult(null); setWorkout(null); setShareUrl(null); setFilename(null); setSaveState("idle"); setCoachShareState("idle"); setFiled(null);
+      setResult(null); setWorkout(null); setShareUrl(null); setFilename(null); setSaveState("idle"); setCoachShareState("idle"); setFiled(null); setClipUrl(null);
     }
   }, [user?.id]);
 
@@ -102,6 +106,7 @@ export default function Analyze() {
       return;
     }
     setFilename(file.name);
+    setClipUrl(URL.createObjectURL(file));
     try {
       setBusy("Analysing your stroke… (first run loads the model)");
       const { analyzeStroke } = await import("@/lib/pose");
@@ -299,6 +304,14 @@ export default function Analyze() {
             </p>
           )}
 
+          {clipUrl && (
+            <div className="card" style={{ marginBottom: 18 }}>
+              <div className="card-title">{resultName ? `${resultName}'s` : "Your"} swing</div>
+              <PoseVideo src={clipUrl} contactTime={result.contactTime} contactPose={result.contactPose}
+                hittingSide={result.hittingSide} label={resultName ? `${resultName}'s swing` : "Your swing"} />
+            </div>
+          )}
+
           <div className="grid grid-2" style={{ marginBottom: 18 }}>
             <div className="card">
               <div className="card-title">What we saw</div>
@@ -336,9 +349,8 @@ export default function Analyze() {
             </div>
 
             <div className="card">
-              <div className="card-title">{resultName ? `${resultName}'s` : "Your"} contact position</div>
-              <ContactSkeleton skeleton={result.skeleton} caption={resultName ? "contact frame" : "your contact frame"} />
-              <div className="table-wrap" style={{ marginTop: 14 }}>
+              <div className="card-title">Readings at contact</div>
+              <div className="table-wrap">
                 <table className="data">
                   <thead><tr><th>Check</th><th>Reading</th><th></th></tr></thead>
                   <tbody>

@@ -47,9 +47,55 @@ export interface PoseAnalysis {
   seconds: number;
   videoFrames: number;
   serveSpeedKmh?: number;   // rough estimate, serves only
+  /** Video time (seconds) of the detected contact frame. */
+  contactTime: number;
+  /** All 33 landmarks on the contact frame, as detected (unsmoothed), for drawing on the video. */
+  contactPose: PosePoint[];
+  /** "left" or "right": the arm that swings the racquet. */
+  hittingSide: "left" | "right";
 }
 
+/** One landmark in normalised frame coordinates (0..1), with MediaPipe's visibility score. */
+export interface PosePoint { x: number; y: number; v: number }
+
+/** Body connections of the 33-point BlazePose model (face points left out). */
+export const POSE_BONES: [number, number][] = [
+  [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+  [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+  [11, 23], [12, 24], [23, 24],
+  [23, 25], [25, 27], [27, 29], [29, 31], [27, 31],
+  [24, 26], [26, 28], [28, 30], [30, 32], [28, 32],
+];
+
 type Pt = { x: number; y: number; z: number; visibility?: number };
+
+const toPosePoints = (pts: Pt[]): PosePoint[] =>
+  pts.map((p) => ({ x: p.x, y: p.y, v: p.visibility ?? 1 }));
+
+/**
+ * Detector for drawing a live overlay while a clip plays. Shares the model with
+ * the analysis, downsizes each frame the same way, and returns null when no
+ * person is found. Call it once per painted video frame.
+ */
+export async function createFrameDetector(): Promise<(video: HTMLVideoElement) => PosePoint[] | null> {
+  const landmarker = await getLandmarker();
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  return (video) => {
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return null;
+    const scale = Math.min(1, 640 / Math.max(w, h));
+    const cw = Math.max(2, Math.round(w * scale)), ch = Math.max(2, Math.round(h * scale));
+    if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+    try {
+      ctx.drawImage(video, 0, 0, cw, ch);
+      const lm = landmarker.detect(canvas).landmarks?.[0];
+      return lm && lm.length >= 25 ? toPosePoints(lm as Pt[]) : null;
+    } catch {
+      return null;
+    }
+  };
+}
 
 // One shared, memoised load: a warm-up started on /analyze and the first real
 // analysis await the same promise instead of initialising the model twice. A
@@ -241,6 +287,7 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
   const fps = played ? estimateFps(frames.map((f) => f.t)) : 30;
   const videoFrames = Math.max(frames.length, Math.round(fps * duration));
 
+  const rawFrames = frames;      // what the model saw on each frame, for drawing on the video
   frames = smoothFrames(frames); // steady the keypoints before measuring angles
 
   // Dominant arm = the wrist that travels most.
@@ -366,6 +413,9 @@ export async function analyzeStroke(file: File, stroke: string): Promise<PoseAna
     seconds: Math.round(duration),
     videoFrames,
     serveSpeedKmh,
+    contactTime: rawFrames[contact].t,
+    contactPose: toPosePoints(rawFrames[contact].pts),
+    hittingSide: right ? "right" : "left",
   };
 }
 
